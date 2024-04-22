@@ -1,0 +1,42 @@
+---
+title: "03_domainome_structural_network"
+author: "Toni Beltran"
+date: "28/02/2024"
+output: html_document
+---
+
+
+```{r load data}
+
+library(data.table)
+
+base_dir=""
+setwd(base_dir)
+
+foldseek_distances<-fread("analysis_files/pdb_files/foldseek_easy_allvsall")
+foldseek_distances[,distance:=1-V6]
+
+colnames(foldseek_distances)<-c("Source","Target","V3","V4","V5","Weight","Distance")
+foldseek_distances$Type<-rep("Undirected",times=nrow(foldseek_distances))
+
+nodes<-data.table(Id=unique(foldseek_distances$Source))
+nodes$PFAM_ID<-unlist(lapply(nodes$Id,FUN=function(string){
+  return(strsplit(string,"_")[[1]][2])
+}))
+
+
+#paint by SCOP class
+pfam_to_scop_class<-fread("analysis_files/PFAM_ID_to_SCOP_class.tsv")
+nodes<-merge(nodes,pfam_to_scop_class,by="PFAM_ID")
+
+
+#write node and edge lists to load into gephi
+write.table(foldseek_distances[Source!=Target,c("Source","Target","Type","Weight")],
+            file="output_files/fseek_distances_edgelist.csv",sep=",",row.names = FALSE)
+
+write.table(nodes[,c("Id","scop_class")],file="output_files/fseek_distances_nodelist.csv",sep=",",row.names = FALSE)
+
+
+
+```
+

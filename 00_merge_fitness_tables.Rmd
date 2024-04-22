@@ -1,0 +1,202 @@
+---
+title: "merge fitness tables"
+output: html_document
+date: "2023-12-19"
+---
+
+```{r load data, overview}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+my_fn_WT <- function(data, mapping, ...){
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_hex(bins=100) +
+    scale_fill_viridis()
+  p
+}
+
+#load dimsum table and merge with designed variants file
+load_allvars<-function(allvars_path,variant_data_merge_path,aavars_path,lib_id){
+  
+  #load allvariants table
+  load(allvars_path)
+  
+  suppressWarnings(print(ggpairs(all_variants[,c("growthrate1","growthrate2","growthrate3")], lower=list(continuous=my_fn_WT))+
+          ggtitle(lib_id)))
+  ggsave(paste("output_files/ED_Figure_1b_",lib_id,".pdf",sep=""))
+  
+  #add zero output variants
+  load(variant_data_merge_path)
+  colnames(variant_data_merge)[9:14]<-c("count_e1_s0","count_e2_s0","count_e3_s0","count_e1_s1","count_e2_s1","count_e3_s1")
+  variant_data_merge_zerooutput<-variant_data_merge[count_e1_s1+count_e2_s1+count_e3_s1==0,]
+  zerooutput_aggregated<-variant_data_merge_zerooutput[,.(
+                  nt_seq=NA,
+                  aa_seq=unique(aa_seq),
+                  Nham_nt=NA,
+                  Nham_aa=NA,
+                  Nmut_codons=NA,
+                  WT=NA,
+                  indel=unique(indel),
+                  STOP=unique(STOP),
+                  STOP_readthrough=unique(STOP_readthrough),
+                  count_e1_s0=sum(count_e1_s0),
+                  count_e2_s0=sum(count_e2_s0),
+                  count_e3_s0=sum(count_e3_s0),
+                  count_e1_s1=sum(count_e1_s1),
+                  count_e2_s1=sum(count_e2_s1),
+                  count_e3_s1=sum(count_e3_s1),
+                  mean_count=mean(c(count_e1_s0,count_e2_s0,count_e3_s0)),
+                  fitness1_uncorr=NA,
+                  fitness2_uncorr=NA,
+                  fitness3_uncorr=NA,
+                  sigma1_uncorr=NA,
+                  sigma2_uncorr=NA,
+                  sigma3_uncorr=NA,
+                  fitness=NA,
+                  sigma=NA,
+                  growthrate1=NA,
+                  growthrate1_sigma=NA,
+                  growthrate2=NA,
+                  growthrate2_sigma=NA,
+                  growthrate3=NA,
+                  growthrate3_sigma=NA,
+                  growthrate=NA,
+                  growthrate_sigma=NA),
+  by="aa_seq"]
+  zerooutput_aggregated$aa_seq<-NULL
+  
+  all_variants<-rbind(all_variants,zerooutput_aggregated)
+  
+  #merge with designed variants
+  all_variants<-merge(all_variants,fread(aavars_path),by="aa_seq",all=TRUE)
+  all_variants[is.na(mean_count),mean_count:=0]
+  
+  #add library id and save
+  all_variants[,library:=lib_id]
+  return(all_variants)
+}
+
+A1<-load_allvars("../0_dimsum_files/dimsum_output/A1_BGI_Q30_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/A1_BGI_Q30_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/A1_all_aa_variants.txt",
+                 "A1")
+B3<-load_allvars("../0_dimsum_files/dimsum_output/B3_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/B3_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/B3_all_aa_variants.txt",
+                 "B3")
+C1<-load_allvars("../0_dimsum_files/dimsum_output/C1_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C1_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C1_resyn_all_aa_variants.txt",
+                 "C1")
+C2<-load_allvars("../0_dimsum_files/dimsum_output/C2_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C2_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C2_all_aa_variants.txt",
+                 "C2")
+C3<-load_allvars("../0_dimsum_files/dimsum_output/C3_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C3_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C3_all_aa_variants.txt",
+                 "C3")
+C4<-load_allvars("../0_dimsum_files/dimsum_output/C4_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C4_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C4_all_aa_variants.txt",
+                 "C4")
+C5<-load_allvars("../0_dimsum_files/dimsum_output/C5_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C5_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C5_all_aa_variants.txt",
+                 "C5")
+C6<-load_allvars("../0_dimsum_files/dimsum_output/C6_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C6_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C6_all_aa_variants.txt",
+                 "C6")
+C7<-load_allvars("../0_dimsum_files/dimsum_output/C7_BGI_Q20_fitness_replicates.RData",
+                 "../0_dimsum_files/dimsum_output/C7_BGI_Q20_variant_data_merge.RData",
+                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C7_all_aa_variants.txt",
+                 "C7")
+
+mutated_domainome<-rbind(A1,B3,C1,C2,C3,C4,C5,C6,C7)
+
+
+#plot fitness correlations
+ggplot(mutated_domainome)+
+  geom_histogram(aes(x=log10(mean_count+1)))+
+  facet_wrap(~library)
+ggsave("output_files/ED_Figure_S1a.pdf")
+
+mutated_domainome<-mutated_domainome[!duplicated(mutated_domainome[,c("aa_seq","variant_ID","library")]),]
+mutated_domainome<-mutated_domainome[!is.na(dom_ID)]
+
+table(mutated_domainome$mean_count>0,mutated_domainome$library)
+table(mutated_domainome$mean_count>10,mutated_domainome$library)
+
+#add dead peak
+modes <- function(d){
+    i <- which(diff(sign(diff(d$y))) < 0) + 1
+    data.frame(x = d$x[i], y = d$y[i])
+}
+
+dead_modes<-c()
+libs<-c()
+for (lib in unique(mutated_domainome$library)){
+  dead_modes<-c(dead_modes,modes(density(mutated_domainome[STOP==TRUE & library==lib,]$growthrate,na.rm=TRUE))$x[which.max(modes(density(mutated_domainome[STOP==TRUE & library==lib,]$growthrate,na.rm=TRUE))$y)])
+  libs<-c(libs,lib)
+}
+
+dead_peaks<-data.table(dead_modes,libs)
+
+for (lib in unique(mutated_domainome$library)){
+
+  mutated_domainome[library==lib,growthrate:=growthrate-dead_peaks[libs==lib,]$dead_modes]
+  mutated_domainome[library==lib,growthrate1:=growthrate1-dead_peaks[libs==lib,]$dead_modes]
+  mutated_domainome[library==lib,growthrate2:=growthrate2-dead_peaks[libs==lib,]$dead_modes]
+  mutated_domainome[library==lib,growthrate3:=growthrate3-dead_peaks[libs==lib,]$dead_modes]
+
+}
+
+ggplot(mutated_domainome)+
+  geom_density(aes(x=growthrate,col=STOP))+
+  facet_wrap(~library)
+ggsave("output_files/Figure_S1b.pdf")
+
+
+#dead if input counts>9 in any of the inputs and 0 in all outputs
+mutated_domainome[mean_count==0,missing:=TRUE]
+mutated_domainome[mean_count>0,missing:=FALSE]
+mutated_domainome[(count_e1_s0>=10 | count_e2_s0>=10 | count_e3_s0>=10) & is.na(fitness),dead:="yes"]
+mutated_domainome[!(count_e1_s0>=10 | count_e2_s0>=10 | count_e3_s0>=10) & is.na(fitness),dead:="undetermined"]
+mutated_domainome[!is.na(fitness),dead:="no"]
+
+nrow(mutated_domainome)
+table(mutated_domainome$missing)
+table(mutated_domainome$dead)
+
+
+mutated_domainome$WT.x<-NULL
+colnames(mutated_domainome)[which(colnames(mutated_domainome)=="WT.y")]<-"WT"
+
+write.table(mutated_domainome,file="analysis_files/mutated_domainome_merged.txt",
+            row.names = FALSE,
+            quote = FALSE,
+            sep = "\t")
+
+write.table(mutated_domainome[,c(1:15,24:40)],file="../6_GEOsubmission/aPCA_variant_growthrates.txt",
+            row.names = FALSE,
+            quote = FALSE,
+            sep = "\t")
+
+nrow(mutated_domainome)
+length(unique(mutated_domainome$aa_seq))
+length(unique(mutated_domainome$dom_ID))
+
+
+```
+
+
+

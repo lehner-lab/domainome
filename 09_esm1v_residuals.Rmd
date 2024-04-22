@@ -1,0 +1,200 @@
+---
+title: "esm1v_residuals"
+output: html_document
+date: "2024-03-06"
+---
+
+```{r esm1v residuals}
+
+library(data.table)
+library(ggplot2)
+library(scales)
+library(GGally)
+library(bigsnpr)
+library(drc)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+esm1v_predictions<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs.txt")[,c("aa_seq","mean_esm1v_prediction_fl","mean_esm1v_prediction")]
+
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+
+mutated_domainome[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
+
+mutated_domainome_predictions<-merge(mutated_domainome,esm1v_predictions,
+                                     by="aa_seq",all.x=TRUE)
+
+
+ggplot(mutated_domainome_predictions)+
+  geom_hex(aes(x=mean_esm1v_prediction,y=mean_esm1v_prediction_fl),bins=100)+
+  scale_fill_viridis()
+cor(mutated_domainome_predictions$mean_esm1v_prediction,mutated_domainome_predictions$mean_esm1v_prediction_fl,
+    use="pairwise.complete.obs")
+
+
+mutated_domainome_predictions<-mutated_domainome_predictions[!(is.na(mean_esm1v_prediction_fl) & WT==FALSE),]
+
+esm1v_range<-mutated_domainome_predictions[,.(range_esm=diff(quantile(mean_esm1v_prediction_fl,probs=c(0.025,0.975),na.rm=TRUE))),by="dom_ID"]
+
+ggplot(esm1v_range)+
+  geom_density(aes(x=range_esm))
+
+```
+
+```{r heatmap function}
+
+
+residuals_heatmap<-function(df,domid){
+  
+  pos_df<-df[WT==FALSE,c("pos","wt_aa")]
+  pos_df<-pos_df[!duplicated(pos_df),]
+  pos_df<-pos_df[order(pos_df$pos),]
+  
+  df$mut_aa<-factor(df$mut_aa,levels=c("*","S","T","N","Q","D","E","K","R","H","G","P","C","M","A","L","I","V","F","Y","W"))
+  
+  pheat <- ggplot(df[WT==FALSE,],aes(x=pos,y=mut_aa))+
+  geom_tile(aes(fill=esm1v_residuals))+
+  scale_x_discrete(limits=pos_df$pos,
+                   labels=pos_df$wt_aa)+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0)+
+  xlab("position")+
+  geom_point(data=mutated_domainome_predictions[WT==FALSE & dead=="yes" & dom_ID_lib==domid,],aes(x=pos,y=mut_aa),col="black")
+  
+  return(pheat)
+}
+
+```
+
+
+```{r scaled data}
+
+
+#run fits for all domains
+doms<-ranked_domains$doms
+wt_gr<-rep(NA,length(doms))
+
+esm1v_residuals_list<-vector(mode="list",length=length(doms))
+mutated_domainome_predictions[,scaled_gr_tofit:=scaled_gr+1]
+
+length(doms)
+#filter out domains with narrow esm1v range
+length(doms[which(doms %in% esm1v_range[range_esm>10,]$dom_ID)])
+#filter out domains with a high WT percentile
+length(doms[which(doms %in% esm1v_range[range_esm>10,]$dom_ID & doms %in% ranked_domains[wt_gr_percentile<0.3,]$dom_ID)])
+#final N
+
+doms_for_fitting<-doms[which(doms %in% esm1v_range[range_esm>10,]$dom_ID & doms %in% ranked_domains[wt_gr_percentile<0.3,]$dom_ID)]
+
+library(msir)
+library(minpack.lm)
+
+for (i in seq(length(doms_for_fitting))){
+  
+  subset<-mutated_domainome_predictions[dom_ID==doms_for_fitting[i] & (mean_count>9) & STOP==FALSE & PFAM_ID!="rockdoms",]
+
+  if (nrow(subset)>9){
+  
+  print(doms_for_fitting[i])
+
+  wt_gr[i]<-mean(subset[WT==TRUE,]$growthrate,na.rm=TRUE)
+
+  subset_toplot<-subset[!is.na(mean_esm1v_prediction_fl) & !(is.na(scaled_gr_tofit)),]
+  subset_toplot<-subset_toplot[order(subset_toplot$mean_esm1v_prediction_fl),]
+
+  #sigmoid - grsq weights
+  xmid<-NA
+  scal<-NA
+  fitnotdone<-TRUE
+  best_deviance<-Inf
+  for (xmidstart in seq(-5,-10,by = -0.5)){
+    for (scalstart in seq_log(0.001,1,100)){
+             fitnotdone<<-FALSE
+             fit = tryCatch({
+             nlsLM(scaled_gr_tofit ~ 1/(1+exp(-(mean_esm1v_prediction_fl-xmid)/scal)),
+             data = subset_toplot,
+             start=list(xmid=xmidstart,scal=scalstart),
+             upper=c(0,1),
+             lower=c(-25,0),
+             control = nls.control(maxiter=1024),
+             weights=(max(scaled_gr_tofit)-min(scaled_gr_tofit)-scaled_gr_tofit)**2)},
+ 
+             error = function(e) {fitnotdone<<-TRUE})
+             
+      if (!fitnotdone){
+        deviance<-deviance(fit)
+        if (deviance < best_deviance){
+            coefs<-coefficients(fit)
+            xmid<-coefs[1]
+            scal<-coefs[2]
+            best_deviance<-deviance(fit)
+        }}
+  }}
+
+  xvals=seq(-25,0,0.1)
+  yvals=c()
+  for (x in xvals){
+    yvals<-c(yvals,1/(1+exp(-(x-as.numeric(xmid))/as.numeric(scal))))
+  }
+  sigmoid_grsq_weights<-data.table(xvals,yvals)
+  
+  subset_toplot$esm1v_residuals<-subset_toplot$scaled_gr_tofit-1/(1+exp(-(subset_toplot$mean_esm1v_prediction_fl-xmid)/scal))
+  subset_toplot[,esm1v_residuals_sigfit_grsq:=esm1v_residuals]
+  subset_toplot[,predicted:=1/(1+exp(-(subset_toplot$mean_esm1v_prediction_fl-xmid)/scal))]
+
+  
+  if (doms_for_fitting[i]=="P78563_PF00035_80"){
+  #plot residuals heatmap
+   print(residuals_heatmap(subset_toplot,doms_for_fitting[i])+
+           ggtitle(paste(doms_for_fitting[i]))+
+           theme_classic())
+   ggsave(paste0("output_files/Figure_5b_",doms_for_fitting[i],"_","esm1vres_heatmap.pdf",collapse=""))
+
+  #plot fits
+  print(ggplot(subset_toplot)+
+     geom_point(aes(x=mean_esm1v_prediction_fl,y=scaled_gr_tofit,col=esm1v_residuals_sigfit_grsq))+
+     geom_line(data=sigmoid_grsq_weights,aes(x=xvals,y=yvals),col="black",size=1.5)+
+     theme_classic()+
+     scale_color_gradient2(low="red",mid="grey80",high="blue",midpoint=0)+
+     ggtitle(doms_for_fitting[i]))
+   ggsave(paste0("output_files/Figure_5a_",doms_for_fitting[i],"_","esm1vres.pdf",collapse=""))
+   
+  }
+  
+  esm1v_residuals_list[[i]]<-subset_toplot
+
+  }}
+
+```
+
+```{r collapse table and save, and analyze overlap with functional sites}
+
+library(dplyr)
+esm1v_residuals_all<-bind_rows(esm1v_residuals_list)
+
+write.table(esm1v_residuals_all,
+            file="analysis_files/esm1v_residuals_sigmoidfits.txt",
+            quote = FALSE,
+            row.names = FALSE)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

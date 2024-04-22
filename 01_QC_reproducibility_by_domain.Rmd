@@ -1,0 +1,540 @@
+---
+title: "overview of individual domains"
+author: "Toni Beltran"
+date: "19/12/2023"
+output: pdf_document
+---
+
+
+```{r load data}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged.txt")
+
+#load synonymous fitness data
+A1_synvars<-fread("../0_dimsum_files/dimsum_output/A1_BGI_Q30_fitness_synonymous.txt",header=TRUE)[,library:="A1"]
+B3_synvars<-fread("../0_dimsum_files/dimsum_output/B3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="B3"]
+C1_synvars<-fread("../0_dimsum_files/dimsum_output/C1_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C1"]
+C2_synvars<-fread("../0_dimsum_files/dimsum_output/C2_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C2"]
+C3_synvars<-fread("../0_dimsum_files/dimsum_output/C3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C3"]
+C4_synvars<-fread("../0_dimsum_files/dimsum_output/C4_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C4"]
+C5_synvars<-fread("../0_dimsum_files/dimsum_output/C5_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C5"]
+C6_synvars<-fread("../0_dimsum_files/dimsum_output/C6_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C6"]
+C7_synvars<-fread("../0_dimsum_files/dimsum_output/C7_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C7"]
+
+synvars<-rbind(A1_synvars,B3_synvars,C1_synvars,C2_synvars,C3_synvars,C4_synvars,C5_synvars,C6_synvars,C7_synvars)
+
+#merge with structural annotations
+
+structural_anno<-fread("analysis_files/domainome_structural_annotation.txt")
+
+structural_anno<-structural_anno[!duplicated(variant_ID),]
+structural_anno$V1<-NULL
+
+mutated_domainome[WT==TRUE,wt_aa:=NA]
+mutated_domainome[WT==TRUE,mut_aa:=NA]
+mutated_domainome[WT==TRUE,pos:=NA]
+mutated_domainome[WT==TRUE,pos_in_uniprot:=NA]
+
+structural_anno[WT==TRUE,wt_aa:=NA]
+structural_anno[WT==TRUE,mut_aa:=NA]
+structural_anno[WT==TRUE,pos:=NA]
+structural_anno[WT==TRUE,pos_in_uniprot:=NA]
+
+
+mutated_domainome_struct<-merge(mutated_domainome,structural_anno,
+                         by=c("aa_seq","dom_ID","variant_ID","pos","pos_in_uniprot","WT","wt_seq","wt_aa","mut_aa"))
+
+```
+
+
+```{r overview of all domains}
+
+
+#run basic analysis for all domains
+
+mutated_domainome_struct<-mutated_domainome_struct[wt_seq!="EQYVVVANYQKQESSEISLSVGQVVDIIEKNESGWWFVSTAEEQGWVPATCLEGQDGV",] #remove duplicated domain
+
+mutated_domainome_struct[,dom_ID_library:=paste(dom_ID,library,sep="_")]
+mutated_domainome_struct$PFAM_ID<-unlist(lapply(mutated_domainome_struct$dom_ID,FUN=function(string){
+  return(strsplit(string,"_")[[1]][2])
+}))
+mutated_domainome_struct<-mutated_domainome_struct[order(dom_ID),]
+mutated_domainome_struct<-mutated_domainome_struct[order(PFAM_ID),]
+
+
+
+doms_lib<-unique(mutated_domainome_struct$dom_ID_library)
+doms<-rep(NA,length(doms_lib))
+library<-rep(NA,length(doms_lib))
+cors_withstops<-rep(NA,length(doms_lib))
+cors_nostops<-rep(NA,length(doms_lib))
+cors_pc1<-rep(NA,length(doms_lib))
+nvars<-rep(NA,length(doms_lib))
+wt_gr<-rep(NA,length(doms_lib))
+wt_gr_sigma<-rep(NA,length(doms_lib))
+wt_gr_percentile<-rep(NA,length(doms_lib))
+gr_range<-rep(NA,length(doms_lib))
+gr_range_perc90<-rep(NA,length(doms_lib))
+median_stops<-rep(NA,length(doms_lib))
+median_synonyms<-rep(NA,length(doms_lib))
+domlength<-rep(NA,length(doms_lib))
+corsasa<-rep(NA,length(doms_lib))
+median_surface_gr<-rep(NA,length(doms_lib))
+median_core_gr<-rep(NA,length(doms_lib))
+median_core_gr_polarmuts<-rep(NA,length(doms_lib))
+wt_gr_diff_to_perc95<-rep(NA,length(doms_lib))
+
+my_fn_WT <- function(data, mapping, ...){
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_point(aes(col=WT),size=0.25) +
+    scale_fill_viridis()
+  return(p)
+}
+
+#counts threshold
+thr<-0
+
+for (i in seq(length(doms))){
+  
+  subset<-mutated_domainome_struct[dom_ID_library==doms_lib[i] & (count_e1_s0>thr | count_e2_s0>thr | count_e3_s0>thr),]
+  
+  doms[i]<-unique(subset$dom_ID)
+  nvars[i]<-nrow(subset)
+  domlength[i]<-unique(nchar(subset$aa_seq))
+  library[i]<-unique(subset$library)
+  
+  
+  if (nrow(subset[WT==TRUE,])>0){
+  
+  subset<-subset[order(subset$WT),]
+  if (nrow(subset)>9){
+  
+  
+  subset_synonyms<-synvars[aa_seq==subset[WT==TRUE & (count_e1_s0>thr | count_e2_s0>thr | count_e3_s0>thr),]$aa_seq[1] & library==unique(subset$library),]
+  subset_synonyms$class<-"synonymous"
+  
+  subset[STOP==TRUE,class:="STOP"]
+  subset[STOP==FALSE,class:="missense"]
+  subset[WT==TRUE,class:="WT"]
+
+  subset_synonyms<-rbind(subset_synonyms[,c("aa_seq","fitness","growthrate","class")],subset[,c("aa_seq","fitness","growthrate","class")])
+  
+  
+  median_stops[i]<-median(subset_synonyms[class=="STOP"]$growthrate)
+  median_synonyms[i]<-median(subset_synonyms[class=="synonymous"]$growthrate)
+
+  cor_withstops<-mean(c(cor(subset$growthrate1,subset$growthrate2,use = "pairwise.complete.obs"),
+                cor(subset$growthrate1,subset$growthrate3,use = "pairwise.complete.obs"),
+                cor(subset$growthrate2,subset$growthrate3,use = "pairwise.complete.obs")))
+  cors_withstops[i]<-cor_withstops
+  
+  subset<-subset[STOP==FALSE,]
+  cor_nostops<-mean(c(cor(subset$growthrate1,subset$growthrate2,use = "pairwise.complete.obs"),
+                cor(subset$growthrate1,subset$growthrate3,use = "pairwise.complete.obs"),
+                cor(subset$growthrate2,subset$growthrate3,use = "pairwise.complete.obs")))
+  cors_nostops[i]<-cor_nostops
+  
+  cors_pc1[i]<-cor(subset$growthrate,subset$PC1,use="pairwise.complete.obs")
+  
+  wt_gr[i]<-as.numeric(subset[WT==TRUE,"growthrate"])
+  wt_gr_sigma[i]<-as.numeric(subset[WT==TRUE,"growthrate_sigma"])
+  
+  if (!is.na(wt_gr[i])){
+  wt_gr_percentile[i]<-which(subset$growthrate[order(subset$growthrate,decreasing = TRUE)]==wt_gr[i])/length(subset$growthrate)
+  }
+  
+  gr_range_perc90[i]<-diff(quantile(subset$growthrate, probs = c(.05, .95),na.rm=TRUE))
+  gr_range[i]<-max(subset$growthrate,na.rm = TRUE)-min(subset$growthrate,na.rm = TRUE)
+
+  wt_gr_diff_to_perc95[i]<-wt_gr[i]-quantile(subset$growthrate, probs = c(.95),na.rm=TRUE)
+
+  
+  subset[rsasa_all<25,loc:="core"]
+  subset[rsasa_all>25,loc:="surface"]
+
+  corsasa[i]<-cor(subset$growthrate,subset$rsasa_all,use="pairwise.complete.obs",method="spearman")
+  median_surface_gr[i]<-median(subset[loc=="surface",]$growthrate,na.rm = TRUE)
+  median_core_gr[i]<-median(subset[loc=="core",]$growthrate,na.rm = TRUE)
+  polar<-c("C","D","E","G","H","K","N","P","Q","R","S","T")
+  median_core_gr_polarmuts[i]<-median(subset[loc=="core" & mut_aa %in% polar,]$growthrate,na.rm=TRUE)
+
+}}}
+
+
+
+```
+
+
+
+```{r summary}
+
+summary<-data.table(doms_lib,
+                    doms,
+                    library,
+                    cors_nostops,
+                    cors_pc1,
+                    nvars,
+                    wt_gr,
+                    wt_gr_sigma,
+                    wt_gr_percentile,
+                    gr_range,
+                    gr_range_perc90,
+                    median_stops,
+                    median_synonyms,
+                    domlength,
+                    corsasa,
+                    median_surface_gr,
+                    median_core_gr,
+                    median_core_gr_polarmuts,
+                    wt_gr_diff_to_perc95)
+
+summary[,completeness:=nvars/(domlength*20)]
+summary[,surface_minus_core:=median_surface_gr-median_core_gr_polarmuts]
+summary[,wt_position:=wt_gr_diff_to_perc95/gr_range_perc90]
+
+
+summary$PFAM_ID<-unlist(lapply(summary$doms,FUN=function(string){
+  return(strsplit(string,"_")[[1]][2])
+}))
+
+summary$uniprot_ID<-unlist(lapply(summary$doms,FUN=function(string){
+  return(strsplit(string,"_")[[1]][1])
+}))
+
+#add taxonomy info
+taxonomy<-fread("analysis_files/domainome_taxonomy.tsv")
+summary<-merge(summary,taxonomy[,c("From","Organism")],by.x="uniprot_ID",by.y = "From",all.x=TRUE)
+summary[PFAM_ID=="rockdoms",Organism:="designed"]
+
+#pc analysis
+toremove<-unique(c(
+which(is.na(summary$wt_position)),
+which(is.na(summary$corsasa)),
+which(is.na(summary$cors_pc1)),
+which(is.na(summary$cors_nostops))))
+toremove<-toremove[order(toremove)]
+
+library(factoextra)
+summary_scaled<-scale(summary[!toremove,c("wt_position","corsasa","cors_nostops","cors_pc1")])
+res.pca <- prcomp(summary_scaled, scale = TRUE)
+
+fviz_eig(res.pca)
+fviz_pca_ind(res.pca)
+
+res.pca$rotation
+
+projections<-data.table(res.pca$x)
+projections$doms_lib<-summary[!toremove,]$doms_lib
+projections$dom_ID<-summary[!toremove,]$doms
+projections$tonis_class<-summary[!toremove,]$tonis_class
+projections$organism<-summary[!toremove,]$Organism
+projections$nvars<-summary[!toremove,]$nvars
+projections$library<-summary[!toremove,]$library
+
+projections<-projections[order(PC1,decreasing=TRUE),]
+projections$rank<-seq(1:nrow(projections))
+projections$nvars_human<-projections$nvars
+projections[organism !="Homo sapiens (Human)",nvars_human:=0]
+projections$totalvars<-cumsum(projections$nvars)
+projections$totalvars_human<-cumsum(projections$nvars_human)
+
+#final numbers
+
+summary_rank<-merge(summary,projections,by=c("doms_lib","library","nvars"),all.x = TRUE)
+
+remove_domains<-c("E9PAV3_PF19026_2040","EHEE-rd2-0005_rockdoms_1","HEEH-rd3-0223_rockdoms_1","HHH-rd2-0133_rockdoms_1","O75364_PF00046_64","O75956_PF09806_73","P10242_PF00249_89","P35637_PF00641_421","P52952_PF00046_140","Q13263_PF00643_205","Q5VTD9_PF00096_193","Q86TZ1_PF13181_60","Q8IX03_PF00397_1","Q8NDW8_PF13181_799","Q9Y2H9_PF17820_968","Q9Y6M9_PF05347_15")
+
+filtered_domains<-summary_rank[rank<601 & completeness>0.5 & cors_nostops>0.485 & !(dom_ID %in% remove_domains),]
+
+length(unique(filtered_domains$dom_ID))
+length(unique(filtered_domains[Organism=="Homo sapiens (Human)",]$dom_ID))
+
+length(unique(filtered_domains[Organism=="Homo sapiens (Human)",]$PFAM_ID))
+table(filtered_domains[Organism=="Homo sapiens (Human)",]$PFAM_ID)[order(table(filtered_domains[Organism=="Homo sapiens (Human)",]$PFAM_ID),decreasing=TRUE)]
+
+sum(filtered_domains[Organism=="Homo sapiens (Human)",]$nvars)
+sum(filtered_domains$nvars)
+
+length(unique(filtered_domains[Organism=="Homo sapiens (Human)",]$uniprot_ID))
+length(unique(filtered_domains$uniprot_ID))
+
+median(filtered_domains$cors_nostops)
+
+#write
+write.table(filtered_domains,file="analysis_files/domain_QC_summary_reproducibility_ranked.txt",quote=FALSE,sep="\t",row.names = FALSE)
+write.table(summary_rank[order(PFAM_ID),],file="analysis_files/domain_QC_summary_reproducibility_ranked_sortedPFAMID.txt",quote=FALSE,sep="\t",row.names = FALSE)
+
+```
+
+
+```{r qc plots of final filtered set}
+
+#calculate delta gr to wt
+mutated_domainome_struct_wts<-mutated_domainome_struct[WT==TRUE,c("aa_seq","growthrate")]
+colnames(mutated_domainome_struct_wts)<-c("wt_seq","wt_gr")
+mutated_domainome_struct_wts<-mutated_domainome_struct_wts[!duplicated(wt_seq),]
+mutated_domainome_struct_wtgrs<-merge(mutated_domainome_struct,mutated_domainome_struct_wts,
+                                      by="wt_seq")
+
+mutated_domainome_struct_wtgrs[,delta_gr:=growthrate-wt_gr]
+
+#normalize fitness level data to the WT and the unfolded variants
+#unfolded variants defined as percentile 2.5% of each domain
+mutated_domainome_deadgr<-mutated_domainome_struct_wtgrs[STOP==FALSE,.(dead_gr=quantile(growthrate,probs=0.025,na.rm = TRUE)),by="wt_seq"]
+colnames(mutated_domainome_deadgr)<-c("wt_seq","dead_gr")
+mutated_domainome_deadgr<-mutated_domainome_deadgr[!duplicated(wt_seq),]
+
+mutated_domainome_struct_wtgrs<-merge(mutated_domainome_struct_wtgrs,mutated_domainome_deadgr,by="wt_seq")
+
+mutated_domainome_struct_wtgrs[,scaled_gr:=(growthrate-wt_gr)/(wt_gr-dead_gr)]
+mutated_domainome_struct_wtgrs[,scaled_gr_sigma:=(growthrate_sigma)/(wt_gr-dead_gr)]
+
+#define core, surface, proline and other groups
+mutated_domainome_struct_wtgrs[,dom_ID_lib:=paste(dom_ID,library,sep="_")]
+mutated_domainome_struct_wtgrs[mut_aa=="P",proline:=TRUE]
+mutated_domainome_struct_wtgrs[mut_aa!="P",proline:=FALSE]
+
+mutated_domainome_struct_wtgrs[rsasa_all<=25,core:="core"]
+mutated_domainome_struct_wtgrs[rsasa_all>25,core:="surface"]
+
+#subset domains and plot
+include<-filtered_domains$doms_lib
+mutated_domainome_final<-mutated_domainome_struct_wtgrs[dom_ID_lib %in% include,]
+
+
+ggplot(mutated_domainome_final[STOP==FALSE,])+
+  geom_density(aes(x=scaled_gr,col=core))+
+  theme_classic()+
+  coord_cartesian(xlim=c(-1.5,0.5))
+ggsave("output_files/Figure_1d_core_vs_surface_scaledfitness.pdf")
+  
+mutated_domainome_final[mut_aa %in% strsplit("AFILMVWY","")[[1]],mut_class:="hydrophobic"]
+mutated_domainome_final[mut_aa %in% strsplit("DEKNQRST","")[[1]],mut_class:="polar"]
+mutated_domainome_final[mut_aa %in% strsplit("P","")[[1]],mut_class:="proline"]
+
+ggplot(mutated_domainome_final[STOP==FALSE & !(is.na(mut_class)),])+
+  geom_density(aes(x=scaled_gr,col=mut_class))+
+  theme_classic()+
+  coord_cartesian(xlim=c(-1.5,0.5))+
+  facet_wrap(~core)
+ggsave("output_files/ED_Figure_1e_core_vs_surface_scaledfitness_mutclass.pdf",width = 6,height = 3)
+ 
+
+ggplot(mutated_domainome_final[STOP==FALSE & WT==FALSE,])+
+  geom_density(aes(x=scaled_gr,col=proline))+
+  theme_classic()+
+  coord_cartesian(xlim=c(-1.5,0.5))
+ggsave("output_files/Figure_1d_proline_vs_others_scaledfitness.pdf")
+
+length(unique(filtered_domains$PFAM_ID))
+median(filtered_domains$cors_nostops)
+
+#merge synonymous variants, normalized fitness and plot
+synvars_wtgr<-merge(synvars,mutated_domainome_struct_wts,
+                    by.x="aa_seq",by.y="wt_seq")
+synvars_wtgr[,delta_gr:=growthrate-wt_gr]
+
+synvars_wtgr<-merge(synvars_wtgr,mutated_domainome_deadgr,
+                    by.x="aa_seq",by.y="wt_seq")
+
+synvars_wtgr[,scaled_gr:=(growthrate-wt_gr)/(wt_gr-dead_gr)]
+synvars_wtgr[,scaled_gr_sigma:=(growthrate_sigma)/(wt_gr-dead_gr)]
+
+
+ggplot(mutated_domainome_final)+
+  geom_density(aes(x=scaled_gr,col=STOP))+
+  geom_density(data=synvars_wtgr[aa_seq %in% mutated_domainome_final$aa_seq,],aes(x=scaled_gr),bw=0.05,col="purple")+
+  theme_classic()+
+  coord_cartesian(xlim=c(-1.5,0.5))
+ggsave("output_files/Figure_1d_stops_synonymous_missense_scaledfitness.pdf")
+
+
+
+replicate_correlations <- function(data, mapping, ...){
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_hex(bins=100) +
+    scale_fill_viridis()
+  p
+}
+
+ggpairs(mutated_domainome_final[,c("growthrate1","growthrate2","growthrate3")], lower=list(continuous=replicate_correlations))+
+  theme_classic()
+ggsave("output_files/Figure_1c_replicate_correlations_included.pdf")
+
+write.table(mutated_domainome_final,file="analysis_files/mutated_domainome_merged_filtered.txt",
+            sep="\t",row.names = FALSE)
+
+counts_per_family<-data.table(table(filtered_domains$PFAM_ID))
+counts_per_family<-counts_per_family[order(N,decreasing=TRUE),]
+
+
+#write normalized fitness table
+mutated_domainome_final$uniprot_ID<-unlist(lapply(mutated_domainome_final$dom_ID,FUN = function(string){
+  return(strsplit(string,"_")[[1]][1])
+}))
+
+supp_table2<-mutated_domainome_final[,c("dom_ID","uniprot_ID","aa_seq","wt_aa","pos_in_uniprot","mut_aa","STOP","count_e1_s0","count_e2_s0","count_e3_s0","count_e1_s1","count_e2_s1","count_e3_s1","mean_count","growthrate","growthrate_sigma","scaled_gr","scaled_gr_sigma")]
+
+colnames(supp_table2)<-c("domain_ID","uniprot_ID","aa_seq","wt_aa","position","mut_aa","STOP","input_count_rep1","input_count_rep2","input_count_rep3","output_count_rep1","output_count_rep2","output_count_rep3",
+                         "mean_input_count","fitness","fitness_sigma","normalized_fitness","normalized_fitness_sigma")
+
+write.table(supp_table2,
+            file="output_files/Supplementary_Table_2_fitness_scores_normalized.txt",
+            sep="\t",row.names = FALSE)
+
+
+```
+
+#plot all for extended data figure
+
+```{r good domains}
+
+mutated_domainome_final_capped_toplot<-data.table(mutated_domainome_final)
+mutated_domainome_final_capped_toplot[scaled_gr<(-1.5),scaled_gr:=(-1.5)]
+mutated_domainome_final_capped_toplot[scaled_gr>1.5,scaled_gr:=1.5]
+
+mutated_domainome_final_capped_toplot$mut_aa<-factor(mutated_domainome_final_capped_toplot$mut_aa,
+    levels=c("*","S","T","N","Q","D","E","K","R","H","G","P","C","M","A","L","I","V","F","Y","W"))
+
+#plot mutational effect heatmap function
+single_mutant_fitness_heatmap_scaled<-function(df,domid){
+  
+  pos_df<-df[WT==FALSE,c("pos","wt_aa","secondary_structure_code")]
+  pos_df<-pos_df[!duplicated(pos_df),]
+  pos_df<-pos_df[order(pos_df$pos),]
+  
+  df$mut_aa<-factor(df$mut_aa,levels=c("*","S","T","N","Q","D","E","K","R","H","G","P","C","M","A","L","I","V","F","Y","W"))
+  
+  pheat <- ggplot(df[WT==FALSE,],aes(x=pos,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_x_discrete(limits=pos_df$pos,
+                   labels=paste(pos_df$wt_aa,pos_df$secondary_structure_code,sep="\n"))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0)+
+  xlab("position")+
+  geom_point(data=mutated_domainome_final_capped_toplot[WT==FALSE & dead=="yes" & dom_ID==domid,],aes(x=pos,y=mut_aa),col="red")
+
+  
+  return(pheat)
+}
+
+
+
+filtered_domains<-filtered_domains[order(rank),]
+#plot top 5 domains of each family with 10+ domains
+
+for (pfamid in counts_per_family[N>=10,]$V1){
+  
+  domainstoplot<-filtered_domains[PFAM_ID==pfamid & completeness>0.9,]
+  domainstoplot<-domainstoplot[1:5,]$doms_lib
+  
+  print(ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% domainstoplot & STOP==FALSE,],aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0)+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=5))
+  ggsave(paste("output_files/data_for_all_domains/top5_",pfamid,"_fitnessheatmap.pdf",sep=""),height=2,width=10)
+}
+
+length(unique(filtered_domains$PFAM_ID))
+nrow(counts_per_family[N>=10,])
+nrow(counts_per_family[N<=1,])
+
+counts_per_family[order(N,decreasing=TRUE),]
+counts_per_family$rank<-1:nrow(counts_per_family)
+counts_per_family$cumsum<-cumsum(counts_per_family$N)
+
+table(filtered_domains$organism)
+
+```
+
+```{r scop classes}
+
+scop_classes<-fread("analysis_files/PFAM_ID_to_SCOP_class.tsv")
+table(scop_classes$scop_class)
+scop_classes[scop_class=="a/b",scop_class:="a+b"]
+
+mutated_domainome_final_scop<-merge(mutated_domainome_final,scop_classes,by="PFAM_ID",all.x = TRUE)
+mutated_domainome_final_scop[secondary_structure=="310Helix",secondary_structure:="Helix"]
+mutated_domainome_final_scop[secondary_structure=="AlphaHelix",secondary_structure:="Helix"]
+
+ggplot(mutated_domainome_final_scop[!is.na(scop_class) & STOP==FALSE,])+
+  geom_density(aes(x=scaled_gr,col=secondary_structure))+
+  coord_cartesian(xlim=c(-1.5,0.5))
+ggsave("output_files/extendedData_fig_1f_secstruct_allmissense.pdf")
+
+ggplot(mutated_domainome_final_scop[STOP==FALSE & mut_aa=="P",])+
+  geom_density(aes(x=scaled_gr,col=secondary_structure))+
+  coord_cartesian(xlim=c(-1.5,0.5))
+ggsave("output_files/extendedData_fig_1f_secstruct_proline.pdf")
+
+
+```
+
+
+```{r all domains, fig.width=15,fig.height=50}
+#plot all retained domains by rank in 5 separate plots - for ED figure
+
+mutated_domainome_final_capped_toplot$dom_ID_lib<-factor(mutated_domainome_final_capped_toplot$dom_ID_lib,
+                                                         levels=filtered_domains$doms_lib)
+filtered_domains<-filtered_domains[order(PFAM_ID,rank_final),]
+filtered_domains$rank_final<-1:nrow(filtered_domains)
+
+mutated_domainome_final_capped_toplot[mut_aa!="*",STOP:=FALSE]
+mutated_domainome_final_capped_toplot[mut_aa=="*",STOP:=TRUE]
+
+
+ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final<105,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0,na.value = "grey85")+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
+  theme(text = element_text(size = 5))
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank1-104.pdf",sep=""),height=11.7,width=8.3)
+
+  
+ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>104 & rank_final<209,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0,na.value = "grey85")+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
+  theme(text = element_text(size = 5))
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank105-208.pdf",sep=""),height=11.7,width=8.3)
+
+  
+ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>208 & rank_final<313,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0,na.value = "grey85")+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
+  theme(text = element_text(size = 5))
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank209-312.pdf",sep=""),height=11.7,width=8.3)
+
+ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>312 & rank_final<417,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0,na.value = "grey85")+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
+  theme(text = element_text(size = 5))
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank313-416.pdf",sep=""),height=11.7,width=8.3)
+
+ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>416 & rank_final<523,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
+  geom_tile(aes(fill=scaled_gr))+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0,na.value = "grey85")+
+  xlab("position")+
+  facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
+  theme(text = element_text(size = 5))
+ggsave(paste("output_files/ED_Figure_2_all_domains_rank417-522.pdf",sep=""),height=11.7,width=8.3)
+
+
+
+```

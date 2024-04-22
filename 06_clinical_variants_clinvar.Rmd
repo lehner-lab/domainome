@@ -1,0 +1,150 @@
+---
+title: "clinical variants clinvar"
+output: html_document
+date: "2024-03-05"
+---
+
+```{r load data and merge}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+
+#load mutated domainome
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+
+
+#clinvar data
+clinvar<-fread("analysis_files/variant_summary_jan24_SNVs_coding.txt")
+
+#get mutation info
+#add mutation and position column
+clinvar$mutation<-unlist(lapply(clinvar$V3,FUN=function(string){return(strsplit(string,split=" ")[[1]][2])}))
+clinvar$wt_aa<-unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,4,6)[[1]][1])}))
+clinvar$mut_aa<-unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,-4,-2)[[1]][1])}))
+clinvar$pos<-as.numeric(unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,7,-5)[[1]][1])})))
+
+
+convert_aa <- function(aa_code) {
+  aa_mapping <- c("Ala" = "A", "Arg" = "R", "Asn" = "N", "Asp" = "D", 
+                  "Cys" = "C", "Gln" = "Q", "Glu" = "E", "Gly" = "G", 
+                  "His" = "H", "Ile" = "I", "Leu" = "L", "Lys" = "K", 
+                  "Met" = "M", "Phe" = "F", "Pro" = "P", "Ser" = "S", 
+                  "Thr" = "T", "Trp" = "W", "Tyr" = "Y", "Val" = "V",
+                  "Ter" = "*")
+
+  one_letter_code <- aa_mapping[aa_code]
+ 
+  return(one_letter_code)
+}
+
+clinvar$mut_aa_1letter<-unlist(lapply(clinvar$mut_aa,FUN=convert_aa))
+clinvar$wt_aa_1letter<-unlist(lapply(clinvar$wt_aa,FUN=convert_aa))
+
+clinvar[,class:="missense"]
+clinvar[grep("=",mutation),class:="synonymous"]
+clinvar[mut_aa=="Ter",class:="nonsense"]
+
+
+#merge with uniprot ids
+geneid_to_uniprotid<-fread("analysis_files/geneid_to_uniprotID_human.txt",header=FALSE)
+colnames(geneid_to_uniprotid)<-c("uniprot_ID","geneid")
+clinvar$geneid<-unlist(lapply(clinvar$V5,FUN=function(string){return(str_split(string,c(";","-"))[[1]][1])}))
+
+geneid_to_uniprotid<-geneid_to_uniprotid[!duplicated(geneid_to_uniprotid),]
+#expand the table with all possible isoform names for each entry
+clinvar_uniprotids_all<-merge(clinvar,geneid_to_uniprotid,by="geneid",allow.cartesian = TRUE)
+
+#merge with mutated domainome dataset
+
+clinvar_uniprotids_all[,uniprot_ID_variant:=paste(uniprot_ID,"_",wt_aa_1letter,pos,mut_aa_1letter,sep="")]
+mutated_domainome[, c("uniprot_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[1]]
+
+mutated_domainome_clinvar<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","wt_aa","pos_in_uniprot","mut_aa"),by.y=c("uniprot_ID","wt_aa_1letter","pos","mut_aa_1letter"))
+
+mutated_domainome_clinvar_nowtaa<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","pos_in_uniprot","mut_aa"),by.y=c("uniprot_ID","pos","mut_aa_1letter"))
+
+mutated_domainome_clinvar_all.x<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","wt_aa","pos_in_uniprot","mut_aa"),by.y=c("uniprot_ID","wt_aa_1letter","pos","mut_aa_1letter"),all.x=TRUE)
+
+nrow(mutated_domainome_clinvar)
+nrow(mutated_domainome_clinvar_nowtaa)
+
+table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & WT==FALSE,]$V7)
+table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Benign","Likely benign","Benign/Likely benign"),]$uniprot_ID)[order(table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Benign","Likely benign","Benign/Likely benign"),]$uniprot_ID),decreasing = TRUE)]
+
+#recode positions for these genes where the mappings failed
+
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P51608" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q13642" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P26367" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P20929" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P32243" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P50539" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q05086" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q9NWH9" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="O00330" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="O95718" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P10070" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P10826" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="P39880" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q12830" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q7L590" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q86UP3" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q8TAQ2" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q96GE6" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q96J02" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q9NU63" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+mutated_domainome_clinvar_nowtaa[uniprot_ID=="Q9Y222" & WT==FALSE,c("variant_ID","aa_seq","wt_aa.x","wt_aa_1letter","pos_in_uniprot")]
+
+#load table with offsets, apply to mutated_domainome and merge again
+offsets<-fread("analysis_files/domains_with_clinvar_mismatches.csv")
+mutated_domainome[,pos_in_uniprot_corrected:=pos_in_uniprot]
+
+for (domid in unique(offsets$dom_ID)){
+  offset<-offsets[dom_ID==domid,]$offset
+  mutated_domainome[dom_ID==domid,pos_in_uniprot_corrected:=pos_in_uniprot_corrected+offset]
+}
+
+
+#merge with mutated domainome dataset
+
+mutated_domainome_clinvar<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","wt_aa","pos_in_uniprot_corrected","mut_aa"),by.y=c("uniprot_ID","wt_aa_1letter","pos","mut_aa_1letter"))
+mutated_domainome_clinvar_nowtaa<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","pos_in_uniprot_corrected","mut_aa"),by.y=c("uniprot_ID","pos","mut_aa_1letter"))
+mutated_domainome_clinvar_all.x<-merge(mutated_domainome,clinvar_uniprotids_all,by.x=c("uniprot_ID","wt_aa","pos_in_uniprot_corrected","mut_aa"),by.y=c("uniprot_ID","wt_aa_1letter","pos","mut_aa_1letter"),all.x=TRUE)
+
+nrow(mutated_domainome_clinvar)
+nrow(mutated_domainome_clinvar_nowtaa)
+
+table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & WT==FALSE,]$V7)
+table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Benign","Likely benign","Benign/Likely benign"),]$uniprot_ID)[order(table(mutated_domainome_clinvar_nowtaa[class=="missense" & wt_aa.x!=wt_aa_1letter & V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Benign","Likely benign","Benign/Likely benign"),]$uniprot_ID),decreasing = TRUE)]
+
+mutated_domainome_clinvar<-mutated_domainome_clinvar[!duplicated(aa_seq),]
+table(mutated_domainome_clinvar[class=="missense",]$V7)
+
+
+#plot distribution of grs
+
+mutated_domainome_clinvar[V7 %in% c("Benign","Likely benign","Benign/Likely benign"),clinical_class:="Benign"]
+mutated_domainome_clinvar[V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Likely risk allele","risk factor"),clinical_class:="Pathogenic"]
+mutated_domainome_clinvar[V7 %in% c("Uncertain significance","no interpretation for the single variant","not provided"),clinical_class:="VUS"]
+mutated_domainome_clinvar[V7 %in% c("Conflicting interpretations of pathogenicity"),clinical_class:="Conflicting"]
+
+table(mutated_domainome_clinvar[class=="missense"]$clinical_class)
+
+write.table(mutated_domainome_clinvar[,c("aa_seq","clinical_class")],file="analysis_files/clinical_variants_measured_clinvar_labels.txt")
+
+
+ggplot(mutated_domainome_clinvar[class=="missense",])+
+  geom_density(aes(x=scaled_gr,col=clinical_class))+
+  theme_classic()
+
+
+
+```
+

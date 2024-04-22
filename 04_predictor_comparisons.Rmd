@@ -1,0 +1,273 @@
+---
+title: "Untitled"
+author: "Toni Beltran"
+date: "04/03/2024"
+output: html_document
+---
+
+```{r setup}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+library(ggpubr)
+
+base_dir=""
+setwd(base_dir)
+
+mutated_domainome_preds<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_AM.txt")
+
+#compute correlations by domain
+
+VEP_correlations<-mutated_domainome_preds[!is.na(growthrate),.(
+  replicate_r=mean(c(cor(growthrate1,growthrate2,method = "pearson",use = "pairwise.complete.obs"),cor(growthrate2,growthrate3,method = "pearson",use = "pairwise.complete.obs"),cor(growthrate1,growthrate3,method = "pearson",use = "pairwise.complete.obs"))),
+  replicate_r_spearman=mean(c(cor(growthrate1,growthrate2,method = "spearman",use = "pairwise.complete.obs"),cor(growthrate2,growthrate3,method = "spearman",use =  "pairwise.complete.obs"),cor(growthrate1,growthrate3,method = "spearman",use = "pairwise.complete.obs"))),
+  rsasa_r=cor(growthrate,rsasa_all,method = "pearson",use = "pairwise.complete.obs"),
+  rsasa_r_spearman=cor(growthrate,rsasa_all,method = "spearman",use = "pairwise.complete.obs"),
+  esm1v_r=cor(mean_esm1v_prediction,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  esm1v_r_spearman=cor(mean_esm1v_prediction_fl,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  esm1v_fl_r=cor(mean_esm1v_prediction_fl,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  esm1v_fl_r_spearman=cor(mean_esm1v_prediction,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  range_esm=diff(quantile(mean_esm1v_prediction_fl,probs=c(0.025,0.975),na.rm=TRUE)),
+  eve_r=cor(-EVE,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  eve_r_spearman=cor(-EVE,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  tranception_r=cor(Tranception,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  tranception_r_spearman=cor(Tranception,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  popeve_r=cor(popEVE,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  popeve_r_spearman=cor(popEVE,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  rasp_r=cor(-RaSP_score,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  rasp_r_spearman=cor(-RaSP_score,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  ddmut_ddG_r=cor(ddmut_ddG,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  ddmut_ddG_r_spearman=cor(ddmut_ddG,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  thermoMPNN_ddG_r=cor(-thermoMPNN_ddG,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  thermoMPNN_ddG_r_spearman=cor(-thermoMPNN_ddG,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  AlphaMissense_r=cor(-AlphaMissense_fitness,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  AlphaMissense_r_spearman=cor(-AlphaMissense_fitness,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  esm1v_r_averaged=mean(c(cor(growthrate1,mean_esm1v_prediction_fl,method = "pearson",use = "pairwise.complete.obs"),cor(growthrate2,mean_esm1v_prediction_fl,method = "pearson",use =  "pairwise.complete.obs"),cor(growthrate3,mean_esm1v_prediction_fl,method = "pearson",use = "pairwise.complete.obs"))),
+  esm1v_r_spearman_averaged=mean(c(cor(growthrate1,mean_esm1v_prediction_fl,method = "spearman",use = "pairwise.complete.obs"),cor(growthrate2,mean_esm1v_prediction_fl,method = "spearman",use =  "pairwise.complete.obs"),cor(growthrate3,mean_esm1v_prediction_fl,method = "spearman",use = "pairwise.complete.obs"))),
+  
+  N=length(growthrate)),by=dom_ID]
+
+
+#spearman's rho
+
+#all
+VEP_correlations_spearman.mlt<-melt(VEP_correlations[,c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman")],id.var="dom_ID")
+
+VEP_correlations_spearman.mlt[variable %in% c("esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","tranception_r_spearman","eve_r_spearman","AlphaMissense_r_spearman"),
+                              type:="fitness"]
+VEP_correlations_spearman.mlt[variable %in% c("ddmut_ddG_r_spearman","rasp_r_spearman","thermoMPNN_ddG_r_spearman"),
+                              type:="stability"]
+VEP_correlations_spearman.mlt[variable %in% c("rsasa_r_spearman"),
+                              type:="sasa"]
+
+VEP_correlations_spearman.mlt$type<-factor(VEP_correlations_spearman.mlt$type,
+                                           levels=c("fitness","stability","sasa"))
+
+VEP_correlations_spearman.mlt$variable<-factor(VEP_correlations_spearman.mlt$variable,
+                                               levels=c("esm1v_fl_r_spearman","esm1v_r_spearman","AlphaMissense_r_spearman","popeve_r_spearman","tranception_r_spearman","eve_r_spearman",
+                                                        "thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
+                                                         "rsasa_r_spearman"))
+
+levels(VEP_correlations_spearman.mlt$variable)<-c("ESM1v\nfull-length","ESM1v\ndomain","AlphaMissense","Tranception","popEVE","EVE","thermoMPNN","ddmut","RaSP","rsasa")
+
+ggplot(VEP_correlations_spearman.mlt)+
+  geom_violin(aes(y=value,x=variable,col=type,fill=type),alpha=0.5)+
+  geom_boxplot(aes(y=value,x=variable,col=type),width=0.1,outlier.shape=NA)+
+  ylab("spearman's r")+
+  xlab("predictor")+
+  scale_fill_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  scale_color_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+ggsave("output_files/Figure_3c_VEPs_vs_aPCA.pdf")
+
+
+
+
+summary_stats_spearman_all<-VEP_correlations_spearman.mlt[,.(median_spearman_r=median(value,na.rm=TRUE)),
+                                       by="variable"]
+
+
+#remove zinc fingers
+pfamid_description<-fread("analysis_files/pfam_ID_description_table.txt")
+pfam_to_scop_class<-fread("analysis_files/PFAM_ID_to_SCOP_class.tsv")
+
+pfam_to_scop_class[scop_class=="a/b",scop_class:="a/b a+b"]
+pfam_to_scop_class[scop_class=="a+b",scop_class:="a/b a+b"]
+
+VEP_correlations_spearman.mlt[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
+
+VEP_correlations_spearman.mlt<-merge(VEP_correlations_spearman.mlt,pfamid_description,by="PFAM_ID",all.x = TRUE)
+VEP_correlations_spearman.mlt<-merge(VEP_correlations_spearman.mlt,pfam_to_scop_class,by="PFAM_ID",all.x = TRUE)
+
+
+ggplot(VEP_correlations_spearman.mlt[!is.na(`zinc finger`),])+
+  geom_violin(aes(y=value,x=variable,col=type,fill=type),alpha=0.5)+
+  geom_boxplot(aes(y=value,x=variable,col=type),width=0.1,outlier.shape=NA)+
+  ylab("spearman's r")+
+  xlab("predictor")+
+  ggtitle("no zinc fingers")+
+  scale_fill_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  scale_color_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))+
+  facet_wrap(~`zinc finger`)
+ggsave("output_files/ED_Figure_3_VEPs_vs_aPCA_zf_vs_nonzf.pdf")
+
+
+summary_stats_spearman_all_zf<-VEP_correlations_spearman.mlt[`zinc finger`=="zinc finger",.(median_spearman_r=median(value,na.rm=TRUE)),
+                                       by="variable"]
+
+summary_stats_spearman_all_nozf<-VEP_correlations_spearman.mlt[`zinc finger`!="zinc finger",.(median_spearman_r=median(value,na.rm=TRUE)),
+                                       by="variable"]
+
+
+
+ggplot(mutated_domainome_preds[dom_ID=="P67809_PF00313_52",])+
+  geom_point(aes(x=thermoMPNN_ddG,y=scaled_gr))+
+  scale_x_reverse()+
+  xlab("thermoMPNN ∆∆G")+
+  ylab("aPCA normalized fitness")
+ggsave("output_files/Figure_3b_example_correlations_thermoMPNN.pdf")
+
+ggplot(mutated_domainome_preds[dom_ID=="P67809_PF00313_52",])+
+  geom_point(aes(x=mean_esm1v_prediction_fl,y=scaled_gr))+
+  xlab("esm1v prediction (mean)")+
+  ylab("aPCA normalized fitness")
+ggsave("output_files/Figure_3b_example_correlations_esm1v.pdf")
+
+
+```
+
+
+```{r fraction of evo constraint explained by abundance - by family, fig.height=6, fig.width=8}
+
+VEP_correlations[,explainable_variance:=esm1v_r_averaged**2/replicate_r**2]
+VEP_correlations[explainable_variance>1,explainable_variance:=1]
+
+
+VEP_correlations[,explainable_variance_spearman:=esm1v_r_spearman_averaged**2/replicate_r_spearman**2]
+VEP_correlations[explainable_variance_spearman>1,explainable_variance_spearman:=1]
+
+cor(VEP_correlations$explainable_variance_spearman,
+    VEP_correlations$explainable_variance,
+    use="pairwise.complete.obs")
+
+ggplot(VEP_correlations)+
+  geom_point(aes(x=explainable_variance,y=explainable_variance_spearman))
+ggsave("output_files/ED_Figure_3b_parametric_vs_nonparametric_varexplained.pdf")
+
+VEP_correlations[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
+
+VEP_correlations<-merge(VEP_correlations,pfam_to_scop_class,by="PFAM_ID",all.x = TRUE)
+VEP_correlations<-merge(VEP_correlations,pfamid_description,by="PFAM_ID",all.x = TRUE)
+
+
+families_with_5<-names(table(VEP_correlations$PFAM_ID)[which(table(VEP_correlations$PFAM_ID)>4)])
+
+#explainable variance esm1v
+medians<-VEP_correlations[PFAM_ID %in% families_with_5,.(median(explainable_variance,na.rm = TRUE)),by="PFAM_ID_description"]
+medians<-medians[order(V1,decreasing = TRUE),]
+
+VEP_correlations$PFAM_ID_description<-factor(VEP_correlations$PFAM_ID_description,
+                                             levels=medians$PFAM_ID_description)
+
+VEP_correlations[PFAM_ID %in% c("PF00595","PF00018","PF00397","PF00641","PF00643","PF01846","PF00536","PF00627","PF00226","PF14604","PF06467","PF07647","PF00412","PF02198","PF00628"),domain_function := "protein binding"]
+VEP_correlations[PFAM_ID %in% c("PF00105","PF00505","PF00157","PF00046","PF00249","PF00313","PF02376"),domain_function := "DNA binding"]
+VEP_correlations[PFAM_ID %in% c("PF00013"),domain_function := "RNA binding"]
+VEP_correlations[PFAM_ID %in% c("PF00030","PF00096","PF00642"),domain_function := "other/multiple"]
+
+
+ggplot(VEP_correlations[PFAM_ID %in% families_with_5,])+
+  geom_violin(aes(x=explainable_variance,y=PFAM_ID_description,fill=scop_class,col=scop_class),alpha=0.5)+
+  geom_jitter(aes(x=explainable_variance,y=PFAM_ID_description,col=scop_class),size=0.5)+
+  geom_boxplot(aes(x=explainable_variance,y=PFAM_ID_description),width=0.3,outlier.shape = NA,alpha=0.5)+
+  scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  theme_classic()
+ggsave("output_files/Figure_3d_esm1v_vs_aPCA.pdf")
+
+
+ggplot(VEP_correlations[PFAM_ID %in% families_with_5 & range_esm>10,])+
+  geom_violin(aes(x=explainable_variance,y=PFAM_ID_description,fill=scop_class,col=scop_class),alpha=0.5)+
+  geom_jitter(aes(x=explainable_variance,y=PFAM_ID_description,col=scop_class),size=0.5)+
+  geom_boxplot(aes(x=explainable_variance,y=PFAM_ID_description),width=0.3,outlier.shape = NA,alpha=0.5)+
+  scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  theme_classic()
+ggsave("output_files/Figure_3d_esm1v_vs_aPCA_rangeesm10.pdf")
+
+
+
+ggplot(VEP_correlations[!is.na(scop_class),])+
+  geom_violin(aes(x=scop_class,y=explainable_variance,fill=scop_class,col=scop_class),alpha=0.5)+
+  geom_boxplot(aes(x=scop_class,y=explainable_variance),width=0.15,fill="white",outlier.shape = NA)+
+  geom_jitter(aes(x=scop_class,y=explainable_variance,col=scop_class))+
+  scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
+  theme_classic()
+ggsave("output_files/Figure_3e_esm1v_vs_aPCA_scopclasses.pdf")
+
+ggplot(VEP_correlations[!is.na(domain_function),])+
+  geom_violin(aes(x=domain_function,y=explainable_variance,fill=domain_function,col=domain_function),alpha=0.5)+
+  geom_boxplot(aes(x=domain_function,y=explainable_variance),width=0.15,fill="white",outlier.shape = NA)+
+  geom_jitter(aes(x=domain_function,y=explainable_variance,col=domain_function))+
+  scale_color_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
+  scale_fill_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
+  theme_classic()
+ggsave("output_files/Figure_3f_esm1v_vs_aPCA_domainfunction.pdf")
+
+#spearman's r esm1v
+medians<-VEP_correlations[PFAM_ID %in% families_with_5,.(median(esm1v_fl_r_spearman,na.rm = TRUE)),by="PFAM_ID_description"]
+medians<-medians[order(V1,decreasing = TRUE),]
+
+VEP_correlations$PFAM_ID_description<-factor(VEP_correlations$PFAM_ID_description,
+                                             levels=medians$PFAM_ID_description)
+
+
+median(VEP_correlations$explainable_variance,na.rm=TRUE)
+median(VEP_correlations[scop_class=="all beta",]$explainable_variance,na.rm=TRUE)
+median(VEP_correlations[scop_class=="all alpha",]$explainable_variance,na.rm=TRUE)
+median(VEP_correlations[scop_class=="a/b a+b",]$explainable_variance,na.rm=TRUE)
+
+
+```
+
+
+```{r tsubo}
+
+humanrocklin<-fread("../../39_domains_in_common_with_Rocklin/human_variants_rocklin_nobackgrounds")
+
+dupdoms<-c("2LVN.pdb","2L7F.pdb","5FW9.pdb","2KCF.pdb","2M8I.pdb","2M8J.pdb","2M9F.pdb","2M9I.pdb","1SIF.pdb","5ZD0.pdb","6IPY.pdb","2MWB.pdb","2N4R","2N4S","2N4T")
+
+humanrocklin_nodupdoms<-humanrocklin[!(V30 %in% dupdoms),]
+
+humanrocklin_nodupdoms_singles<-humanrocklin_nodupdoms[-unique(c(grep("dmut",V1),grep("_wt",V1),grep("_hnet",V1),grep("ins",V1),grep("del",V1))),]
+humanrocklin_nodupdoms_singles[!duplicated(V28),]
+
+humanrocklin_nodupdoms_singles$is_single<-unlist(lapply(humanrocklin_nodupdoms_singles$V1,function(string){
+  return(length(strsplit(string,"_")[[1]]))
+}))
+
+table(humanrocklin_nodupdoms_singles$is_single)
+
+unique(humanrocklin_nodupdoms_singles[is_single==3,]$V30)
+unique(humanrocklin_nodupdoms_singles[is_single==1,]$V30)
+
+
+length(unique(protherm[SOURCE=="Homo sapiens (Human)",]$UniProt_ID))
+
+ggplot()+
+  geom_col(aes(y=c(5847,55238,536684),x=c("ProthermDB","Mega-scale","Domainome 1.0")))+
+  xlab("Source")+
+  ylab("number of human single\nmutant missense variants")
+ggsave("output_files/human_missense_counts_comparison.pdf")
+
+
+```
+
+
+
+

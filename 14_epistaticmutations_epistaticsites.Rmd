@@ -1,0 +1,285 @@
+---
+title: "14_epistasis_from_mochi_models"
+output: html_document
+date: "2024-03-11"
+---
+
+
+
+```{r epistatic mutations from mochi fits}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+library(ggpubr)
+library(OneR)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+pfamids<-fread("analysis_files/homolog_mochi_input_files/PFAM_IDs",header=FALSE)$V1  
+
+read_predicted_vs_observed<-function(family,fit_type){
+
+obs_vs_predicted<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_",fit_type,"/predictions/predicted_phenotypes_all.txt",sep=""))
+obs_vs_predicted[,PFAM_ID:=family]
+
+return(obs_vs_predicted)
+}
+
+
+predicted_vs_observed<-c()
+
+for (pfamid in pfamids){
+  predicted_vs_observed<-rbind(predicted_vs_observed,read_predicted_vs_observed(pfamid,"folding"))
+}
+
+
+aaseq_to_recodedseq<-fread("analysis_files/homolog_mochi_input_files/aa_seq_to_recoded_seq_mappings.txt")
+colnames(predicted_vs_observed)[1]<-"recoded_seq"
+
+predicted_vs_observed_merged<-merge(predicted_vs_observed,aaseq_to_recodedseq,by=c("PFAM_ID","recoded_seq"))
+
+predicted_vs_observed_merged$predicted<-apply(predicted_vs_observed_merged[,c("fold_1","fold_2","fold_3","fold_4","fold_5","fold_6","fold_7","fold_8","fold_9","fold_10","Fold")],MARGIN=1,FUN = function(row){
+  if (is.na(row[11])){
+    return(NA)
+  }
+  else{
+  return(as.numeric(row[1:10])[as.numeric(row[11])])
+  }  
+})
+
+predicted_vs_observed_merged<-predicted_vs_observed_merged[Abundance==1,]
+
+predicted_vs_observed_merged_noWT<-predicted_vs_observed_merged[wt_seq != aa_seq,]
+
+predicted_vs_observed_merged_noWT$mutation_id<-unlist(lapply(predicted_vs_observed_merged_noWT$recoded_seq,FUN = function(recoded_seq){
+  split_seq<-strsplit(recoded_seq,"")[[1]]
+  pos<-which(split_seq != "-")[1]
+  mut_aa<-split_seq[pos]
+  return(paste("-",pos,mut_aa,sep = ""))
+}))
+
+
+predicted_vs_observed_merged_noWT[,residual:=fitness-predicted]
+
+
+
+#add structural features etc to mochi output table
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+
+predicted_vs_observed_merged_noWT_structuralinfo<-merge(predicted_vs_observed_merged_noWT,mutated_domainome,by=c("aa_seq","PFAM_ID","dom_ID"))
+
+counts_per_family<-predicted_vs_observed_merged_noWT_structuralinfo[,.(N=length(unique(dom_ID))),by="PFAM_ID"]
+
+predicted_vs_observed_merged_noWT_structuralinfo<-predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID %in% counts_per_family[N>5,]$PFAM_ID,]
+
+predicted_vs_observed_merged_noWT_structuralinfo[rsasa_all<25,core:="core"]
+predicted_vs_observed_merged_noWT_structuralinfo[rsasa_all>=25,core:="surface"]
+
+
+#test for each position whether they are enriched in significant residuals
+predicted_vs_observed_merged_noWT_structuralinfo[,z:=residual/sigma.x]
+predicted_vs_observed_merged_noWT_structuralinfo[,p:=2*(1-pnorm(abs(z)))]
+
+ggplot(predicted_vs_observed_merged_noWT_structuralinfo)+
+  geom_histogram(aes(x=p))
+
+predicted_vs_observed_merged_noWT_structuralinfo[,fdr:=p.adjust(p,method="fdr")]
+predicted_vs_observed_merged_noWT_structuralinfo[fdr>0.05 | abs(residual)<0.05,sig:="no"]
+predicted_vs_observed_merged_noWT_structuralinfo[fdr<0.05 & abs(residual)>0.05,sig:="yes"]
+
+table(predicted_vs_observed_merged_noWT_structuralinfo$sig)
+
+predicted_vs_observed_merged_noWT_structuralinfo$pos_in_alignment<-as.numeric(unlist(lapply(predicted_vs_observed_merged_noWT_structuralinfo$mutation_id,FUN=function(string){
+  return(substr(string,2,nchar(string)-1))
+})))
+
+
+#aggregate by mutation, position in the alignment and domain
+summary_by_mutation<-predicted_vs_observed_merged_noWT_structuralinfo[,.(sigmuts=length(which(sig=="yes")),
+                                                                     nonsigmuts=length(which(sig=="no"))),by=c("PFAM_ID","mutation_id")]
+summary_by_position<-predicted_vs_observed_merged_noWT_structuralinfo[,.(sigmuts=length(which(sig=="yes")),
+                                                                     nonsigmuts=length(which(sig=="no")),
+                                                                     rsasa_avg=mean(rsasa_all,na.rm=TRUE),
+                                                                     fitness_avg=mean(fitness.x),
+                                                                     vdw_intra_avg=mean(vdw_intra,na.rm=TRUE),
+                                                                     sb_intra_avg=mean(sb_intra,na.rm=TRUE),
+                                                                     hbbb_intra_avg=mean(hbbb_intra,na.rm=TRUE),
+                                                                     hbsb_intra_avg=mean(hbsb_intra,na.rm=TRUE),
+                                                                     hbss_intra_avg=mean(hbss_intra,na.rm=TRUE),
+                                                                     hp_intra_avg=mean(hp_intra,na.rm=TRUE),
+                                                                     pc_intra_avg=mean(pc_intra,na.rm=TRUE),
+                                                                     ps_intra_avg=mean(ps_intra,na.rm=TRUE),
+                                                                     ts_intra_avg=mean(ts_intra,na.rm=TRUE),
+                                                                     wb_intra_avg=mean(wb_intra,na.rm=TRUE)),by=c("PFAM_ID","pos_in_alignment")]
+
+summary_by_domain<-predicted_vs_observed_merged_noWT_structuralinfo[,.(sigmuts=length(which(sig=="yes")),
+                                                                     nonsigmuts=length(which(sig=="no"))),by=c("PFAM_ID")]
+
+summary_by_position$n_core<-apply(summary_by_position[,c("PFAM_ID","pos_in_alignment")],MARGIN=1,FUN=function(row){
+  
+  pfamid<-row[1]
+  aln_pos<-as.numeric(row[2])
+  
+  subset<-predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID==pfamid & pos_in_alignment==aln_pos,]
+  return(nrow(subset[core=="core",]))
+})
+
+summary_by_position$n_surface<-apply(summary_by_position[,c("PFAM_ID","pos_in_alignment")],MARGIN=1,FUN=function(row){
+  
+  pfamid<-row[1]
+  aln_pos<-as.numeric(row[2])
+  
+  subset<-predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID==pfamid & pos_in_alignment==aln_pos,]
+  return(nrow(subset[core=="surface",]))
+})
+
+summary_by_position[,perc_core:=n_core/(n_surface+n_core)*100]
+
+
+
+summary_by_position[perc_core<=25,core:="surface"]
+summary_by_position[perc_core>75,core:="core"]
+summary_by_position[perc_core>25 & perc_core<75,core:="changing"]
+
+
+#fisher's exact test - by alignment position
+
+summary_by_position$fet_OR<-as.numeric(unlist(apply(summary_by_position[,c("PFAM_ID","sigmuts","nonsigmuts")],MARGIN = 1,FUN=function(row){
+  sig<-as.numeric(row[2])
+  nonsig<-as.numeric(row[3])
+  pfamid<-row[1]
+  
+  sig_background<-summary_by_domain[PFAM_ID==pfamid,]$sigmuts
+  nonsig_background<-summary_by_domain[PFAM_ID==pfamid,]$nonsigmuts
+  
+  test<-fisher.test(cbind(c(sig,nonsig),c(sig_background-sig,nonsig_background-nonsig)))
+  return(test$estimate)
+})))
+
+summary_by_position$fet_p<-as.numeric(unlist(apply(summary_by_position[,c("PFAM_ID","sigmuts","nonsigmuts")],MARGIN = 1,FUN=function(row){
+  sig<-as.numeric(row[2])
+  nonsig<-as.numeric(row[3])
+  pfamid<-row[1]
+  
+  sig_background<-summary_by_domain[PFAM_ID==pfamid,]$sigmuts
+  nonsig_background<-summary_by_domain[PFAM_ID==pfamid,]$nonsigmuts
+  
+  test<-fisher.test(cbind(c(sig,nonsig),c(sig_background-sig,nonsig_background-nonsig)))
+  return(test$p.value)
+})))
+
+
+summary_by_position[,fet_fdr:=p.adjust(fet_p,method="fdr")]
+summary_by_position[fet_fdr>0.05 | abs(log2(fet_OR))<1.5,sigsite:=FALSE]
+summary_by_position[fet_fdr<0.05 & abs(log2(fet_OR))>1.5,sigsite:=TRUE]
+
+
+table(summary_by_position$sigsite,summary_by_position$PFAM_ID)
+
+summary_by_position[log2(fet_OR)>1.5 & fet_fdr<0.05, sigsite_class:="more epistatic"]
+summary_by_position[log2(fet_OR)<(-1.5) & fet_fdr<0.05, sigsite_class:="less epistatic"]
+summary_by_position[abs(log2(fet_OR))<1.5 | fet_fdr>0.05, sigsite_class:="not significant"]
+
+table(summary_by_position$sigsite_class,summary_by_position$core)
+
+epi_surface<-nrow(summary_by_position[sigsite_class=="more epistatic" & core=="surface"])
+nonepi_surface<-nrow(summary_by_position[sigsite_class!="more epistatic" & core=="surface"])
+epi_nonsurf<-nrow(summary_by_position[sigsite_class=="more epistatic" & core!="surface"])
+nonepi_nonsurf<-nrow(summary_by_position[sigsite_class!="more epistatic" & core!="surface"])
+
+fisher.test(cbind(c(epi_surface,nonepi_surface),c(epi_nonsurf,nonepi_nonsurf))) #OR 5.29x depletion of epistatic sites in the surfaces
+
+epi_core<-nrow(summary_by_position[sigsite_class=="more epistatic" & core=="core"])
+nonepi_core<-nrow(summary_by_position[sigsite_class!="more epistatic" & core=="core"])
+epi_noncore<-nrow(summary_by_position[sigsite_class=="more epistatic" & core!="core"])
+nonepi_noncore<-nrow(summary_by_position[sigsite_class!="more epistatic" & core!="core"])
+
+fisher.test(cbind(c(epi_core,nonepi_core),c(epi_noncore,nonepi_noncore))) #OR 2.71x enrichment of epistatic sites in cores
+
+
+#plot a few sites
+nrow(summary_by_position[fet_fdr<0.1 & (fet_OR>2 | fet_OR<0.5),])
+summary_by_position[order(fet_fdr)[1:200],]
+
+ggplot()+
+  geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595",],aes(x=predicted,y=fitness.x),alpha=0.1)+
+  geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595" & pos_in_alignment==29,],aes(x=predicted,y=fitness.x, col=sig))+
+  ylab("observed fitness")+
+  xlab("predicted fitness")
+ggsave("output_files/ED_Figure_8a_site_enriched_in_epistaticmutations.pdf")
+
+ggplot()+
+  geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595",],aes(x=predicted,y=fitness.x),alpha=0.1)+
+  geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595" & pos_in_alignment==82,],aes(x=predicted,y=fitness.x,col=sig))+
+  ylab("observed fitness")+
+  xlab("predicted fitness")
+ggsave("output_files/ED_Figure_8b_site_depleted_in_epistaticmutations.pdf")
+
+
+ggplot(summary_by_position)+
+  geom_boxplot(aes(x=core,y=log2(fet_OR),fill=core))
+ggsave("output_files/ED_Figure_8c_enrichment_vs_coresurface.pdf")
+
+table(summary_by_position$core)
+
+
+ggplot(summary_by_position)+
+  geom_boxplot(aes(x=core,y=log2(fet_OR),fill=core),outlier.shape=NA)+
+  geom_jitter(aes(x=core,y=log2(fet_OR),col=core),size=0.25)+
+  facet_wrap(~PFAM_ID)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+ggsave("output_files/ED_Figure_8e_enrichment_vs_coresurface_byfamily.pdf")
+
+
+#is this true across the range of fitness?
+summary_by_position[,fitness_bins:=bin(fitness_avg,nbins=4)]
+
+ggplot(summary_by_position)+
+  geom_boxplot(aes(x=core,y=log2(fet_OR),fill=core))+
+  facet_wrap(~fitness_bins)
+
+
+#running medians
+
+running_median_core<-c()
+running_median_surface<-c()
+running_median_changing<-c()
+
+windowsize=0.02
+fitness_steps=seq(min(summary_by_position$fitness_avg),max(summary_by_position$fitness_avg),0.005)
+for (fitness in fitness_steps){
+  
+  running_median_core<-c(running_median_core,median(log2(summary_by_position[fitness_avg<(fitness+windowsize/2) & fitness_avg>(fitness-windowsize/2) & fet_OR!=0 & fet_OR!=Inf & core=="core",]$fet_OR)))
+  running_median_surface<-c(running_median_surface,median(log2(summary_by_position[fitness_avg<(fitness+windowsize/2) & fitness_avg>(fitness-windowsize/2) & fet_OR!=0 & fet_OR!=Inf & core=="surface",]$fet_OR)))
+  running_median_changing<-c(running_median_changing,median(log2(summary_by_position[fitness_avg<(fitness+windowsize/2) & fitness_avg>(fitness-windowsize/2) & fet_OR!=0 & fet_OR!=Inf & core=="changing",]$fet_OR)))
+
+}
+
+ggplot()+
+  geom_point(data=summary_by_position,aes(x=fitness_avg,y=log2(fet_OR),col=core))+
+  geom_line(aes(y=running_median_core,x=fitness_steps),col="darkgreen")+
+  geom_line(aes(y=running_median_surface,x=fitness_steps),col="blue")+
+  geom_line(aes(y=running_median_changing,x=fitness_steps),col="red")
+ggsave("output_files/ED_Figure_8d_enrichment_in_epistaticmuts_core_surface_runningmedian.pdf")
+
+
+predicted_vs_observed_merged_noWT_structuralinfo[,total_contact_count:=vdw_intra+sb_intra+hbbb_intra+hbsb_intra+hbss_intra+hp_intra+pc_intra+ps_inter+ts_intra+wb_intra]
+
+predicted_vs_observed_merged_noWT_structuralinfo[,dom_ID_pos:=paste(dom_ID,pos,sep="_")]
+
+
+ggplot(predicted_vs_observed_merged_noWT_structuralinfo[!duplicated(dom_ID_pos),])+
+  geom_boxplot(aes(x=core,y=total_contact_count))
+ggsave("output_files/ED_figure_8f_core_vs_surface_getcontacts.pdf")
+
+table(predicted_vs_observed_merged_noWT_structuralinfo$core)
+
+
+```

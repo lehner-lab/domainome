@@ -1,0 +1,52 @@
+---
+title: "plot fitness on structures"
+output: html_document
+date: "2024-03-06"
+---
+
+
+```{r fitness changes on structures}
+
+library(ggplot2)
+library(data.table)
+library(bio3d)
+
+base_dir=""
+setwd(base_dir)
+
+#load fitness changes
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+
+#mutated domainome
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+
+mutated_domainome[dom_ID=="Q15811_PF07653_1003",dom_ID:="Q15811_PF00018_1003"]
+
+```
+
+```{r weights onto structures}
+
+paint_structure<-function(domid){
+
+
+fitness_summary<-mutated_domainome[STOP==FALSE & dom_ID==domid & !is.na(delta_gr),list(wmean_fitness = weighted.mean(scaled_gr,scaled_gr_sigma,na.rm=TRUE),
+                      mean_fitness = mean(scaled_gr,na.rm=TRUE)),by="pos_in_uniprot"]
+
+structure<-read.pdb(paste("analysis_files/pdb_files/",domid,".pdb",sep=""))
+
+for(i in min(structure$atom$resno):max(structure$atom$resno)){
+structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-0
+}
+for(i in min(fitness_summary$pos_in_uniprot,na.rm = TRUE):max(fitness_summary$pos_in_uniprot,na.rm = TRUE)){
+if (length(fitness_summary[pos_in_uniprot==i,]$wmean_fitness)!=0){
+      structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-fitness_summary[pos_in_uniprot==i,]$wmean_fitness*(-1)
+}}
+  
+write.pdb(structure,file=paste0("output_files/wmean_fitness_on_structures/",domid,"_","delta_fitness_wmean.pdb",collapse=""))
+}
+
+
+for (domid in unique(mutated_domainome$dom_ID)){
+  paint_structure(domid)}
+
+```

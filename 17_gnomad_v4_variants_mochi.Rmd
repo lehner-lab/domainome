@@ -1,0 +1,79 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-03-11"
+---
+
+
+```{r load data}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+#load gene id to uniprot ids
+geneid_to_uniprotid<-fread("analysis_files/geneid_to_uniprotID_human.txt",header=FALSE)
+colnames(geneid_to_uniprotid)<-c("uniprot_ID","geneid")
+geneid_to_uniprotid<-geneid_to_uniprotid[!grep("^hCG_",geneid),]
+
+#load mappings from mochi weight positions to pfam alignment positions
+mochi_pos_to_pfam_alnpos<-fread("analysis_files/homolog_mochi_input_files/mochi_alnpos_to_pfam_alnpos.txt")
+colnames(mochi_pos_to_pfam_alnpos)<-c("mochi_pos","aln_pos","PFAM_ID")
+mochi_pos_to_pfam_alnpos<-mochi_pos_to_pfam_alnpos[!duplicated(mochi_pos_to_pfam_alnpos),]
+
+#load pfam alignments to map position in protein to position in alignment
+pfam_alignments<-fread("analysis_files/Pfam-A.human.seqpos_to_alnpos.clinvargenes.PFAM_IDs_fitted")
+colnames(pfam_alignments)<-c("PFAM_entry","pos","aln_pos","wt_aa","gene_ID","uniprot_ID","PFAM_ID",
+                             "PFAM_ID.n","uniprot_ID_pos_in_uniprot")
+#load gnomad variants
+gnomad_variants<-fread("analysis_files/gnomad_v4_variants_domainome_homologs.txt")
+gnomad_variants<-gnomad_variants[V9=="missense_variant",]
+
+convert_aa <- function(aa_code) {
+  aa_mapping <- c("Ala" = "A", "Arg" = "R", "Asn" = "N", "Asp" = "D", 
+                  "Cys" = "C", "Gln" = "Q", "Glu" = "E", "Gly" = "G", 
+                  "His" = "H", "Ile" = "I", "Leu" = "L", "Lys" = "K", 
+                  "Met" = "M", "Phe" = "F", "Pro" = "P", "Ser" = "S", 
+                  "Thr" = "T", "Trp" = "W", "Tyr" = "Y", "Val" = "V",
+                  "Ter" = "*")
+
+  one_letter_code <- aa_mapping[aa_code]
+ 
+  return(one_letter_code)
+}
+
+
+gnomad_variants$wt_aa<-unlist(lapply(gnomad_variants$V11,FUN=function(string){return(str_sub(string,3,5)[[1]][1])}))
+gnomad_variants$mut_aa<-unlist(lapply(gnomad_variants$V11,FUN=function(string){return(str_sub(string,-3,-1)[[1]][1])}))
+gnomad_variants$pos<-as.numeric(unlist(lapply(gnomad_variants$V11,FUN=function(string){return(str_sub(string,6,-4)[[1]][1])})))
+
+gnomad_variants$mut_aa_1letter<-unlist(lapply(gnomad_variants$mut_aa,FUN=convert_aa))
+gnomad_variants$wt_aa_1letter<-unlist(lapply(gnomad_variants$wt_aa,FUN=convert_aa))
+
+
+#map all 3 tables together
+#mochi weight positions <--> alignment positions <--> protein positions <--> gnomad_variants
+pfam_alignments_mochipos<-merge(pfam_alignments,mochi_pos_to_pfam_alnpos,
+                                               by=c("aln_pos","PFAM_ID"))
+pfam_alignments_mochipos_geneid<-merge(pfam_alignments_mochipos,geneid_to_uniprotid,by="uniprot_ID",
+                                       all.x=TRUE,allow.cartesian = TRUE)
+
+gnomad_variants[,geneid_wtpos:=paste(V2,"_",wt_aa_1letter,pos,sep="")]
+pfam_alignments_mochipos_geneid[,geneid_wtpos:=paste(geneid,"_",wt_aa,pos,sep="")]
+
+gnomad_variants_mapped<-merge(gnomad_variants,pfam_alignments_mochipos_geneid,by="geneid_wtpos")
+gnomad_variants_mapped[,id:=paste("-",mochi_pos,mut_aa_1letter,sep="")]
+
+gnomad_variants_mapped<-gnomad_variants_mapped[!duplicated(V3),]
+write.table(gnomad_variants_mapped,file="analysis_files/gnomad_v4_variants_in_mapped_domains_mochi.txt",
+            row.names = FALSE)
+
+
+
+
+```
+

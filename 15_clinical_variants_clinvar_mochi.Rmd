@@ -1,0 +1,120 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-03-11"
+---
+
+```{r clinvar direct merge}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+#clinvar data
+clinvar<-fread("analysis_files/variant_summary_jan24_SNVs_coding.txt")
+
+#get mutation info
+#add mutation and position column
+clinvar$mutation<-unlist(lapply(clinvar$V3,FUN=function(string){return(strsplit(string,split=" ")[[1]][2])}))
+clinvar$wt_aa<-unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,4,6)[[1]][1])}))
+clinvar$mut_aa<-unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,-4,-2)[[1]][1])}))
+clinvar$pos<-as.numeric(unlist(lapply(clinvar$mutation,FUN=function(string){return(str_sub(string,7,-5)[[1]][1])})))
+
+convert_aa <- function(aa_code) {
+  aa_mapping <- c("Ala" = "A", "Arg" = "R", "Asn" = "N", "Asp" = "D", 
+                  "Cys" = "C", "Gln" = "Q", "Glu" = "E", "Gly" = "G", 
+                  "His" = "H", "Ile" = "I", "Leu" = "L", "Lys" = "K", 
+                  "Met" = "M", "Phe" = "F", "Pro" = "P", "Ser" = "S", 
+                  "Thr" = "T", "Trp" = "W", "Tyr" = "Y", "Val" = "V",
+                  "Ter" = "*")
+
+  one_letter_code <- aa_mapping[aa_code]
+ 
+  return(one_letter_code)
+}
+
+clinvar$mut_aa_1letter<-unlist(lapply(clinvar$mut_aa,FUN=convert_aa))
+clinvar$wt_aa_1letter<-unlist(lapply(clinvar$wt_aa,FUN=convert_aa))
+
+clinvar[,class:="missense"]
+clinvar[grep("=",mutation),class:="synonymous"]
+clinvar[mut_aa=="Ter",class:="nonsense"]
+
+
+#merge with uniprot ids
+geneid_to_uniprotid<-fread("analysis_files/geneid_to_uniprotID_human.txt",header=FALSE)
+colnames(geneid_to_uniprotid)<-c("uniprot_ID","geneid")
+clinvar$geneid<-unlist(lapply(clinvar$V5,FUN=function(string){return(str_split(string,c(";","-"))[[1]][1])}))
+
+length(unique(clinvar$V5))
+length(which(unique(clinvar$V5) %in% geneid_to_uniprotid$geneid))
+
+length(unique(clinvar$geneid))
+length(which(unique(clinvar$geneid) %in% geneid_to_uniprotid$geneid))
+length(unique(clinvar$geneid)[which(!(unique(clinvar$geneid) %in% geneid_to_uniprotid$geneid))])
+#negligible number of genes that cannot be merged
+
+geneid_to_uniprotid<-geneid_to_uniprotid[!duplicated(geneid_to_uniprotid),]
+
+clinvar_uniprotids_all<-merge(clinvar[class=="missense",],geneid_to_uniprotid,by="geneid",allow.cartesian = TRUE)
+
+
+#load mappings from mochi weight positions to pfam alignment positions
+mochi_pos_to_pfam_alnpos<-fread("analysis_files/homolog_mochi_input_files/mochi_alnpos_to_pfam_alnpos.txt")
+colnames(mochi_pos_to_pfam_alnpos)<-c("mochi_pos","aln_pos","PFAM_ID")
+mochi_pos_to_pfam_alnpos<-mochi_pos_to_pfam_alnpos[!duplicated(mochi_pos_to_pfam_alnpos),]
+
+#load pfam alignments to map position in protein to position in alignment
+pfam_alignments<-fread("analysis_files/Pfam-A.human.seqpos_to_alnpos.clinvargenes.PFAM_IDs_fitted")
+colnames(pfam_alignments)<-c("PFAM_entry","pos","aln_pos","wt_aa","gene_ID","uniprot_ID","PFAM_ID",
+                             "PFAM_ID.n","uniprot_ID_pos_in_uniprot")
+#map all 3 tables together
+#mochi weight positions <--> alignment positions <--> protein positions
+clinvar_mapped_pfam_alignments<-merge(clinvar_uniprotids_all,pfam_alignments,
+                                      by=c("uniprot_ID","pos"))
+length(unique(clinvar_mapped_pfam_alignments$uniprot_ID_pos_in_uniprot))
+
+clinvar_mapped_pfam_alignments_mochipos<-merge(clinvar_mapped_pfam_alignments,mochi_pos_to_pfam_alnpos,
+                                               by=c("aln_pos","PFAM_ID"))
+#we have some mismatches because the pfam alignments contain all isoforms of a protein and typically the positions are slightly different
+#but it is good because this way we ensure that the right isoform is there
+
+nrow(clinvar_mapped_pfam_alignments_mochipos[wt_aa_1letter==wt_aa.y,])
+#18,045 variants that we have predictions for that contain clinical variants
+
+clinvar_mapped_pfam_alignments_mochipos[,id:=paste("-",mochi_pos,mut_aa_1letter,sep="")]
+
+#gene classes
+well_mapped<-unique(clinvar_mapped_pfam_alignments_mochipos[wt_aa_1letter==wt_aa.y,]$V3)
+mismatch<-unique(clinvar_mapped_pfam_alignments_mochipos[wt_aa_1letter!=wt_aa.y,]$V3)
+mismatch_allisos<-mismatch[which(!(mismatch %in% well_mapped))]
+
+#mapped variants table
+mapped_variants<-clinvar_mapped_pfam_alignments_mochipos[wt_aa_1letter==wt_aa.y,]
+
+#write list of domains that contain pathogenic mutations (before collapsing)
+pathogenic_domains<-unique(mapped_variants[V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Likely risk allele","risk factor","Likely pathogenic/Likely risk allele","Pathogenic; risk factor","Affects"),]$PFAM_entry)
+write.table(pathogenic_domains,file="analysis_files/pathogenic_domains_directmerge_PFAM_entries.txt",row.names = FALSE, col.names = FALSE)
+
+mapped_variants<-mapped_variants[!duplicated(V3),]
+
+unmapped_variants<-clinvar_mapped_pfam_alignments_mochipos[V3 %in% mismatch_allisos, ]
+unmapped_variants<-unmapped_variants[!duplicated(V3),]
+
+#consolidate clinical classes and write
+mapped_variants[V7 %in% c("Benign","Likely benign","Benign/Likely benign"),clinical_class:="Benign"]
+mapped_variants[V7 %in% c("Pathogenic","Likely pathogenic","Pathogenic/Likely pathogenic","Likely risk allele","risk factor","Likely pathogenic/Likely risk allele","Pathogenic; risk factor","Affects"),clinical_class:="Pathogenic"]
+mapped_variants[V7 %in% c("Uncertain significance","no interpretation for the single variant","not provided","Uncertain significance/Uncertain risk allele"),clinical_class:="VUS"]
+mapped_variants[V7 %in% c("Conflicting interpretations of pathogenicity"),clinical_class:="Conflicting"]
+
+table(mapped_variants[!duplicated(V3)]$V7)
+
+write.table(mapped_variants,file="analysis_files/clinical_variants_mochi_inferred_clinvar_labels.txt")
+
+
+```
+

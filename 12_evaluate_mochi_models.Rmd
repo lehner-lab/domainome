@@ -1,0 +1,332 @@
+---
+title: "mochi models for homologs"
+output: html_document
+date: "2024-03-11"
+---
+
+```{r setup}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+library(ggpubr)
+library(GGally)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+#folding weights, 2-state model
+
+pfamids<-fread("analysis_files/homolog_mochi_input_files/PFAM_IDs",header=FALSE)$V1  
+
+read_weights_and_plot<-function(family,fit_type,save=FALSE){
+
+weights<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_",fit_type,"/weights/weights_Folding.txt",sep=""))
+weights[,mut_aa:=substr(id,nchar(id),nchar(id))]
+weights[id=="WT",mut_aa:=NA]
+weights$mut_aa<-factor(weights$mut_aa,
+                       levels=str_split("QNSTDEKRHGPCMAILVFYW","")[[1]])
+
+
+features<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_features_solu.txt",sep=""))
+wt_weights<-features[SoluWeight!="",]$SoluWeight
+mut_weights<-weights[!is.na(`mean_kcal/mol`) & !(id %in% wt_weights),]
+
+if (fit_type=="folding_linear"){
+  mut_weights$`mean_kcal/mol`<-mut_weights$`mean_kcal/mol`*(-1)
+}
+
+unfolded<-quantile(mut_weights$`mean_kcal/mol`,probs=0.975)
+mut_weights[,mean_kcalmol_scaled:=`mean_kcal/mol`/unfolded]
+mut_weights[,std_kcalmol_scaled:=`std_kcal/mol`/unfolded]
+
+
+p<-ggplot(mut_weights)+
+  geom_tile(aes(x=Pos,y=mut_aa,fill=mean_kcalmol_scaled))+
+  scale_fill_gradient2(limits=c(min(mut_weights$mean_kcalmol_scaled),max(mut_weights$mean_kcalmol_scaled)),
+                       low="blue",mid="white",high = "red",midpoint=0)+
+  ggtitle(paste(family,fit_type,sep = "_"))
+
+if (save){ggsave(paste("output_files/Figure_6g_",family,"_",fit_type,"_weight_heatmap.pdf",sep=""),height = 6, width=10)}else{
+
+print(p)
+mut_weights[,family:=family]
+mut_weights[,fit_type:=fit_type]
+
+return(mut_weights[,c("id","mean_kcalmol_scaled","family","fit_type","Pos","mut_aa")])
+}
+}
+
+all_weights<-data.frame()
+
+#2-state folding model with Boltzmann distribution link function
+for (pfamid in pfamids){
+  all_weights<-rbind(all_weights,read_weights_and_plot(pfamid,"folding"))
+  }
+
+#linear 2-state model
+for (pfamid in pfamids){
+  all_weights<-rbind(all_weights,read_weights_and_plot(pfamid,"folding_linear"))
+  }
+#2-state folding model with Boltzmann distribution link function and domain specific linear scaling (intercept and slope)
+for (pfamid in pfamids){
+  all_weights<-rbind(all_weights,read_weights_and_plot(pfamid,"folding_solu"))
+}
+
+
+read_weights_and_plot("PF00046","folding",save=TRUE)
+
+```
+
+```{r weight correlations, fig.height=10, fig.width=10}
+
+all_weights_wide<-dcast(all_weights, ... ~ fit_type, value.var="mean_kcalmol_scaled")
+
+for (pfamid in pfamids){
+  print(ggpairs(all_weights_wide[family==pfamid,], columns = 5:7)+
+    ggtitle(pfamid))
+}
+
+```
+
+
+#Performance - Boltzmann model
+
+```{r mochi performance across families}
+
+#function to load predicted vs observed
+fitness_data_reps<-fread("analysis_files/mutated_domainome_merged_filtered.txt")[,c("aa_seq","growthrate1","growthrate2","growthrate3")]
+fitness_data_reps<-fitness_data_reps[!duplicated(aa_seq),]
+
+
+read_predicted_vs_observed<-function(family,fit_type){
+
+obs_vs_predicted<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_",fit_type,"/predictions/predicted_phenotypes_all.txt",sep=""))
+obs_vs_predicted[,PFAM_ID:=family]
+
+return(obs_vs_predicted)
+}
+
+
+predicted_vs_observed<-c()
+
+for (pfamid in pfamids){
+  predicted_vs_observed<-rbind(predicted_vs_observed,read_predicted_vs_observed(pfamid,"folding"))
+}
+
+
+aaseq_to_recodedseq<-fread("analysis_files/homolog_mochi_input_files/aa_seq_to_recoded_seq_mappings.txt")
+colnames(predicted_vs_observed)[1]<-"recoded_seq"
+
+predicted_vs_observed_merged<-merge(predicted_vs_observed,aaseq_to_recodedseq,by=c("recoded_seq","PFAM_ID"))
+predicted_vs_observed_merged<-merge(predicted_vs_observed_merged,fitness_data_reps,by="aa_seq")
+
+
+predicted_vs_observed_merged$predicted<-apply(predicted_vs_observed_merged[,c("fold_1","fold_2","fold_3","fold_4","fold_5","fold_6","fold_7","fold_8","fold_9","fold_10","Fold")],MARGIN=1,FUN = function(row){
+  if (is.na(row[11])){
+    return(NA)
+  }
+  else{
+  return(as.numeric(row[1:10])[as.numeric(row[11])])
+  }  
+})
+
+predicted_vs_observed_merged<-predicted_vs_observed_merged[Abundance==1,]
+
+
+#calculate evaluation metrics
+
+summary_boltzmann_folding<-predicted_vs_observed_merged[,.(R2=cor(predicted,fitness,use="pairwise.complete.obs")**2,
+                                                        R2_pred=mean(c(cor(predicted,growthrate1,use="pairwise.complete.obs"),
+                                                                          cor(predicted,growthrate2,use="pairwise.complete.obs"),
+                                                                          cor(predicted,growthrate3,use="pairwise.complete.obs")))**2,
+                                                        R2_rep=mean(c(cor(growthrate1,growthrate2,use="pairwise.complete.obs"),
+                                                                      cor(growthrate1,growthrate3,use="pairwise.complete.obs"),
+                                                                      cor(growthrate2,growthrate3,use="pairwise.complete.obs")))**2,
+                                                        N=length(unique(dom_ID))),by="PFAM_ID"]
+summary_boltzmann_folding$fit<-rep("boltzmann 2-state",nrow(summary_boltzmann_folding))
+
+predicted_vs_observed_merged_toplot<-predicted_vs_observed_merged[PFAM_ID %in% summary_boltzmann_folding[N>5,]$PFAM_ID,]
+
+#plot predictions
+
+ggplot(predicted_vs_observed_merged_toplot)+
+  geom_hex(aes(x=predicted,y=fitness,fill=stat(log(count))))+
+  scale_fill_continuous(low = "gray99", high = "black")+
+  facet_wrap(~PFAM_ID,scales = "free")+
+  geom_smooth(aes(x=predicted,y=fitness),method = "lm",size=0.25,col="red")+
+  stat_cor(aes(x=predicted,y=fitness,label = ..r.label..),size=2)+
+  theme_classic()+
+  theme(text=element_text(size=8))
+ggsave("output_files/ED_Figure_7a_obs_vs_predicted_allfamilies_boltzmann.pdf")
+
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
+  geom_hex(aes(x=predicted,y=fitness,fill=stat(log(count))),bins=100)+
+  scale_fill_continuous(low = "gray99", high = "black")+
+  geom_smooth(aes(x=predicted,y=fitness),method = "lm",size=0.25,col="red")+
+  stat_cor(aes(x=predicted,y=fitness,label = ..r.label..),size=2)+
+  theme_classic()+
+  theme(text=element_text(size=8))
+ggsave("output_files/Figure_6c_obs_vs_predicted_homeodomains_boltzmann.pdf",height=3,width = 4)
+
+
+
+predicted_vs_observed_merged_toplot$additive_trait<-unlist(as.numeric(apply(predicted_vs_observed_merged_toplot[,c("fold_1_additive_trait0","fold_2_additive_trait0","fold_3_additive_trait0","fold_4_additive_trait0","fold_5_additive_trait0","fold_6_additive_trait0","fold_7_additive_trait0","fold_8_additive_trait0","fold_9_additive_trait0","fold_10_additive_trait0","Fold")],MARGIN = 1,FUN = function(row){
+  
+  return(row[as.numeric(row[11])])
+  
+})))
+
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
+  geom_hex(aes(x=additive_trait,y=fitness,fill=stat(log(count))),bins=200)+
+  scale_fill_continuous(low = "gray99", high = "black")+
+  geom_line(aes(x=additive_trait,y=predicted),size=0.02,col="red")+
+  theme_classic()+
+  theme(text=element_text(size=8))+
+  coord_cartesian(xlim = c(-3,5))
+ggsave("output_files/Figure_6b_fitness_vs_additive_trait_homeodomains_boltzmann.pdf",height=3,width = 4)
+
+
+#plot evaluation metrics
+
+#R2 of the fit for all families
+#R2 of the fit for individual domains (distribution)
+
+median(summary_boltzmann_folding[N>5,]$R2)
+median(sqrt(summary_boltzmann_folding[N>5,]$R2))
+
+median(summary_boltzmann_folding[N>5,]$R2_pred/summary_boltzmann_folding[N>5,]$R2_rep)
+
+
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=growthrate1,y=growthrate2))+
+  stat_cor(aes(x=growthrate1,y=growthrate2))
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=growthrate1,y=growthrate3))+
+  stat_cor(aes(x=growthrate1,y=growthrate3))
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=growthrate2,y=growthrate3))+
+  stat_cor(aes(x=growthrate2,y=growthrate3))
+
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=predicted,y=growthrate1))+
+  stat_cor(aes(x=predicted,y=growthrate1))
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=predicted,y=growthrate2))+
+  stat_cor(aes(x=predicted,y=growthrate2))
+
+ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
+  geom_point(aes(x=predicted,y=growthrate3))+
+  stat_cor(aes(x=predicted,y=growthrate3))
+
+
+
+
+summary_boltzmann_folding$PFAM_ID<-factor(summary_boltzmann_folding$PFAM_ID,
+                                          levels=summary_boltzmann_folding[order(R2,decreasing = TRUE),]$PFAM_ID)
+ggplot(summary_boltzmann_folding[N>5,])+
+  geom_col(aes(x=sqrt(R2),y=PFAM_ID))+
+  coord_cartesian(xlim = c(0.55,0.9))+
+  xlab("Pearson's r")
+ggsave("output_files/Figure_6i_byfamily_performance.pdf")
+
+
+
+
+
+summary_boltzmann_folding_bydomain<-predicted_vs_observed_merged[PFAM_ID %in% unique(summary_boltzmann_folding[N>5,]$PFAM_ID),.(R2=cor(predicted,fitness,use="pairwise.complete.obs")**2,
+                                                                    R2_pred=mean(c(cor(predicted,fitness1_uncorr,use="pairwise.complete.obs"),
+                                                                          cor(predicted,fitness2_uncorr,use="pairwise.complete.obs"),
+                                                                          cor(predicted,fitness3_uncorr,use="pairwise.complete.obs")))**2,
+                                                                    R2_rep=mean(c(cor(fitness1_uncorr,fitness2_uncorr,use="pairwise.complete.obs"),
+                                                                          cor(fitness1_uncorr,fitness3_uncorr,use="pairwise.complete.obs"),
+                                                                          cor(fitness2_uncorr,fitness3_uncorr,use="pairwise.complete.obs")))**2,
+                                                                    PFAM_ID=unique(PFAM_ID)),by="dom_ID"]
+
+median(sqrt(summary_boltzmann_folding_bydomain$R2_rep))
+median(sqrt(summary_boltzmann_folding_bydomain$R2))
+
+median(summary_boltzmann_folding_bydomain$R2/summary_boltzmann_folding_bydomain$R2_rep)
+median(summary_boltzmann_folding_bydomain$R2_pred/summary_boltzmann_folding_bydomain$R2_rep)
+
+summary_boltzmann_folding_bydomain$fit<-rep("boltzmann 2-state",nrow(summary_boltzmann_folding_bydomain))
+
+
+```
+
+```{r all weight heatmaps, fig.height=10, fig.width=25}
+
+ggplot(all_weights[fit_type=="folding" & family %in% unique(summary_boltzmann_folding[N>5,]$PFAM_ID),])+
+  geom_tile(aes(x=Pos,y=mut_aa,fill=mean_kcalmol_scaled))+
+  scale_fill_gradient2(limits=c(-1.5,1.5),
+                       low="blue",mid="white",high = "red",midpoint=0)+
+  facet_wrap(~family,scales = "free_x",ncol=5)
+ggsave("output_files/ED_Figure_7b_modelweights.pdf",height=11,width=18)
+
+```
+
+
+```{r weights onto structures}
+
+library(bio3d)
+
+read_weights_and_paint_structure<-function(family,fit_type){
+
+weights<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_",fit_type,"/weights/weights_Folding.txt",sep=""))
+mochi_to_aln_pos<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_mochi_pos_to_PFAM_aln_pos.txt",sep=""))
+mochi_to_aln_pos<-mochi_to_aln_pos[!duplicated(mochi_to_aln_pos)]
+
+weights[,mut_aa:=substr(id,nchar(id),nchar(id))]
+weights[id=="WT",mut_aa:=NA]
+weights$mut_aa<-factor(weights$mut_aa,
+                       levels=str_split("QNSTDEKRHGPCMAILVFYW","")[[1]])
+
+unfolded<-quantile(weights$`mean_kcal/mol`,probs=0.975)
+
+weights[,mean_kcalmol_scaled:=`mean_kcal/mol`/unfolded]
+weights[,std_kcalmol_scaled:=`std_kcal/mol`/unfolded]
+
+weights_summary<-weights[,list(wmean_kcalmol = weighted.mean(mean_kcalmol_scaled,std_kcalmol_scaled),
+                      mean_kcalmol = mean(mean_kcalmol_scaled)),by=Pos]
+
+weights_summary_alnpos<-merge(weights_summary[!is.na(Pos)],mochi_to_aln_pos[!is.na(pos)],
+               by.x="Pos", by.y = "aln_pos_domainome",
+               allow.cartesian = TRUE)
+
+
+for (domid in unique(weights_summary_alnpos$dom_ID)){
+
+structure<-read.pdb(paste("analysis_files/pdb_files/",domid,".pdb",sep=""))
+
+for(i in 1:max(structure$atom$resno)){
+structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-0
+}
+for(i in min(weights_summary_alnpos$pos_in_uniprot.x,na.rm=TRUE):max(weights_summary_alnpos$pos_in_uniprot.x,na.rm = TRUE)){
+if (length(weights_summary_alnpos[dom_ID==domid & pos_in_uniprot.x==i,]$wmean_kcalmol)!=0){
+      structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-weights_summary_alnpos[dom_ID==domid & pos_in_uniprot.x==i,]$wmean_kcalmol
+}}
+  
+write.pdb(structure,file=paste0("output_files/",domid,"_","mochi_weights_wmean.pdb",collapse=""))
+}}
+
+
+for (pfamid in pfamids){
+suppressWarnings(read_weights_and_paint_structure(pfamid,"folding"))
+}
+
+```
+
+
+
+
+

@@ -1,0 +1,282 @@
+---
+title: "10_esm1v_residual_analysis"
+output: html_document
+date: "2024-03-06"
+---
+
+```{r esm1v residuals}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+library(OneR)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+#load ranked domains and aPCA+esm1v residuals data
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+esm1v_residuals_all_mutations<-fread("analysis_files/esm1v_residuals_sigmoidfits.txt")
+
+esm1v_residuals_all_mutations[, c("uniprot_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[1]]
+esm1v_residuals_all_mutations[,uniprot_ID_pos_in_uniprot:=paste(uniprot_ID,pos_in_uniprot,sep = "_")]
+
+#load functional site annotations
+funsites<-fread("analysis_files/domainome_functional_residues.txt")
+funsites<-funsites[!duplicated(funsites),]
+colnames(funsites)<-c("uniprot_ID","cdd_ID","cdd_description","pos_in_uniprot","WT_aa")
+funsites[,uniprot_ID_pos_in_uniprot:=paste(uniprot_ID,pos_in_uniprot,sep="_")]
+funsites<-funsites[uniprot_ID_pos_in_uniprot %in% esm1v_residuals_all_mutations$uniprot_ID_pos_in_uniprot,]
+funsites[,cdd_ID_description:=paste(cdd_ID,cdd_description,sep="_")]
+
+nrow(funsites)
+nrow(funsites[!duplicated(cdd_description),])
+funsite_counts<-data.table(table(funsites$cdd_description)[order(table(funsites$cdd_description),decreasing=TRUE)])
+print(funsite_counts)
+
+esm1v_residuals_all_mutations[!(uniprot_ID_pos_in_uniprot %in% funsites$uniprot_ID_pos_in_uniprot),funsite:="no"]
+esm1v_residuals_all_mutations[uniprot_ID_pos_in_uniprot %in% funsites$uniprot_ID_pos_in_uniprot,funsite:="yes"]
+
+length(unique(esm1v_residuals_all_mutations$dom_ID))
+
+```
+
+```{r analyse residuals}
+
+#plot distribution of raw residuals
+
+
+nrow(esm1v_residuals_all_mutations)
+length(unique(esm1v_residuals_all_mutations$dom_ID))
+
+nrow(funsites[uniprot_ID_pos_in_uniprot %in% unique(esm1v_residuals_all_mutations$uniprot_ID_pos_in_uniprot),])
+#3,104 functional site annotations
+length(unique(funsites[uniprot_ID_pos_in_uniprot %in% unique(esm1v_residuals_all_mutations$uniprot_ID_pos_in_uniprot),]$uniprot_ID_pos_in_uniprot))
+#in 2,800 sites
+
+
+#plot distribution of residuals
+ggplot(esm1v_residuals_all_mutations)+
+  geom_density(aes(x=esm1v_residuals_sigfit_grsq,col=funsite))+
+  coord_cartesian(xlim=c(-1,2))+
+  theme_classic()
+ggsave("output_files/Figure_5d_functional_sites_residuals.pdf")
+
+#plot these for classes of funsites
+
+site_types_with_50_residues<-unique(funsite_counts[N>=50,]$V1)
+
+esm1v_residuals_all_mutations_merged<-merge(esm1v_residuals_all_mutations,funsites[,c("uniprot_ID_pos_in_uniprot","cdd_ID","cdd_description","pos_in_uniprot","cdd_ID_description")],by="uniprot_ID_pos_in_uniprot",all.x=TRUE,allow.cartesian = TRUE)
+esm1v_residuals_all_mutations_merged[cdd_description == "zinc binding site", cdd_description:= "Zn binding site"]
+  
+ggplot(esm1v_residuals_all_mutations_merged[cdd_description %in% site_types_with_50_residues,])+
+  geom_histogram(aes(x=esm1v_residuals_sigfit_grsq),breaks=seq(-1,2,by=10/200))+
+  coord_cartesian(xlim=c(-1,2))+
+  geom_vline(aes(xintercept=0),col="red")+
+  facet_wrap(~cdd_description,scales = "free_y")+
+  xlab("residuals aPCA to esm1v")
+ggsave("output_files/ED_Figure_5b_residuals_by_cdd_description.pdf")
+
+
+#merge tables, will contain duplicated sites that have more than 1 functional annotation
+
+esm1v_residuals_all_mutations_merged[is.na(cdd_description),cdd_description:="none"]
+
+by_site_anno_stats<-esm1v_residuals_all_mutations_merged[,.(median_res=median(esm1v_residuals_sigfit_grsq),
+                                                            median_z=median(esm1v_residuals_sigfit_grsq/sigma)),
+                                                         by="cdd_description"]
+
+```
+
+
+```{r statistical test}
+
+#test without merging by site
+
+esm1v_residuals_all_mutations_merged_unique<-esm1v_residuals_all_mutations_merged[!duplicated(variant_ID),]
+
+esm1v_residuals_all_mutations_merged_unique[,z_per_mutation:=esm1v_residuals_sigfit_grsq/scaled_gr_sigma]
+esm1v_residuals_all_mutations_merged_unique[,p_per_mutation:=2*(1-pnorm(abs(z_per_mutation)))]
+esm1v_residuals_all_mutations_merged_unique[,fdr_per_mutation:=p.adjust(p_per_mutation,method="fdr")]
+
+ggplot(esm1v_residuals_all_mutations_merged_unique)+
+  geom_histogram(aes(x=p_per_mutation))
+ggplot(esm1v_residuals_all_mutations_merged_unique)+
+  geom_histogram(aes(x=fdr_per_mutation))
+
+esm1v_residuals_all_mutations_merged_unique[,sig:=FALSE]
+esm1v_residuals_all_mutations_merged_unique[fdr_per_mutation<0.1 & esm1v_residuals_sigfit_grsq>0.3,sig:=TRUE]
+
+table(esm1v_residuals_all_mutations_merged_unique$sig)
+
+cont_table_all<-table(esm1v_residuals_all_mutations_merged_unique$sig,esm1v_residuals_all_mutations_merged_unique$funsite)
+fisher.test(cont_table_all)
+
+
+#merge fitness and error estimates by position, test by position
+#merged sigmas are very small so taking a thresholding approach instead (residual > 0.3)
+
+
+esm1v_residuals_all_mutations_merged_bypos<-esm1v_residuals_all_mutations_merged_unique[,.(
+  merged_esm1v_residual=sum(esm1v_residuals_sigfit_grsq/scaled_gr_sigma**2)/sum(1/scaled_gr_sigma**2),
+  merged_sigma=1/sum(1/scaled_gr_sigma**2),
+  cdd_description=unique(cdd_description),
+  funsite=unique(funsite),
+  cdd_ID_description=unique(cdd_ID_description),
+  PFAM_ID=unique(PFAM_ID),
+  dom_ID=unique(dom_ID),
+  pos_in_uniprot=unique(pos_in_uniprot.x),
+  wt_aa=unique(wt_aa),
+  wt_seq=unique(wt_seq)),by="uniprot_ID_pos_in_uniprot"]
+
+ggplot(esm1v_residuals_all_mutations_merged_bypos)+
+  geom_density(aes(x=merged_esm1v_residual,col=funsite))+
+  theme_classic()
+#ggsave("output_files/Figure_5e_functional_sites_residuals_wmean.pdf")
+
+
+#overall enrichments
+esm1v_residuals_all_mutations_merged_bypos[merged_esm1v_residual>0.3,sig:="yes"]
+esm1v_residuals_all_mutations_merged_bypos[merged_esm1v_residual<0.3,sig:="no"]
+
+table(esm1v_residuals_all_mutations_merged_bypos$funsite)
+
+#contingency table with all
+cont_table_all<-table(esm1v_residuals_all_mutations_merged_bypos$sig,esm1v_residuals_all_mutations_merged_bypos$funsite)
+fisher.test(cont_table_all)
+
+#aggregate by type
+cont_table_bysite<-(t(as.matrix(table(esm1v_residuals_all_mutations_merged_bypos$sig,
+                                      esm1v_residuals_all_mutations_merged_bypos$cdd_description))))
+cont_table_bysite_dt<-data.table(cdd_description=rownames(cont_table_bysite),
+                                 no=cont_table_bysite[,"no"],
+                                 yes=cont_table_bysite[,"yes"])
+
+none_nonsig<-cont_table_bysite_dt[cdd_description=="none"]$no
+none_sig<-cont_table_bysite_dt[cdd_description=="none"]$yes
+
+cont_table_bysite_dt$OR<-apply(cont_table_bysite_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$estimate)
+                               })
+cont_table_bysite_dt$fisher_p<-apply(cont_table_bysite_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$p.value)
+                               })
+cont_table_bysite_dt$confint_lower<-apply(cont_table_bysite_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$conf.int[1])
+                               })
+cont_table_bysite_dt$confint_upper<-apply(cont_table_bysite_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$conf.int[2])
+                               })
+
+cont_table_bysite_dt[,fisher_fdr:=p.adjust(fisher_p)]
+cont_table_bysite_dt_fdr0.1<-cont_table_bysite_dt[fisher_fdr<0.1,]
+
+#significant site terms
+cont_table_bysite_dt_fdr0.1<-cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),]
+cont_table_bysite_dt_fdr0.1$cdd_description<-factor(cont_table_bysite_dt_fdr0.1$cdd_description,
+                                                    levels=unique(cont_table_bysite_dt_fdr0.1$cdd_description))
+
+ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
+  geom_col(aes(y=cdd_description,x=log2(OR)))+
+  theme_classic()
+ggsave("output_files/Figure_5f_oddsratios_by_cdd_description.pdf")
+
+
+ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
+  geom_point(aes(y=cdd_description,x=log2(OR)),size=3,col="blue")+
+  geom_errorbar(aes(y=cdd_description,x=log2(OR),xmin=log2(confint_lower),xmax=log2(confint_upper)))+
+  theme_classic()
+ggsave("output_files/Figure_5f_oddsratios_by_cdd_description_errorbars.pdf")
+
+
+#aggregate by cdd_ID_description
+esm1v_residuals_all_mutations_merged_bypos[is.na(cdd_ID_description),cdd_ID_description:="none"]
+
+cont_table_cdd<-(t(as.matrix(table(esm1v_residuals_all_mutations_merged_bypos$sig,
+                                   esm1v_residuals_all_mutations_merged_bypos$cdd_ID_description))))
+cont_table_cdd_dt<-data.table(cdd_ID_description=rownames(cont_table_cdd),
+                                 no=cont_table_cdd[,"no"],
+                                 yes=cont_table_cdd[,"yes"])
+
+none_nonsig<-cont_table_cdd_dt[cdd_ID_description=="none"]$no
+none_sig<-cont_table_cdd_dt[cdd_ID_description=="none"]$yes
+
+cont_table_cdd_dt$OR<-apply(cont_table_cdd_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$estimate)
+                               })
+cont_table_cdd_dt$fisher_p<-apply(cont_table_cdd_dt,
+                               MARGIN = 1,
+                               FUN = function(row){
+                                  return(fisher.test(cbind(c(as.numeric(row[3]),as.numeric(row[2])),c(none_sig,none_nonsig)))$p.value)
+                               })
+cont_table_cdd_dt[,fisher_fdr:=p.adjust(fisher_p)]
+cont_table_bysite_dt_fdr0.1<-cont_table_cdd_dt[fisher_fdr<0.1,]
+
+pfam_labels<-esm1v_residuals_all_mutations_merged_bypos[cdd_ID_description!="none",c("cdd_ID_description","PFAM_ID")]
+pfam_labels<-pfam_labels[!duplicated(pfam_labels),]
+pfamid_description<-fread("analysis_files/pfam_ID_description_table.txt")
+pfam_labels_merged<-merge(pfam_labels,pfamid_description,by="PFAM_ID")
+
+cont_table_bysite_dt_fdr0.1<-merge(cont_table_bysite_dt_fdr0.1,pfam_labels_merged,all.x=TRUE,by="cdd_ID_description")
+cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),]
+
+
+#write suppl table 4
+supp_table_4<-esm1v_residuals_all_mutations_merged_bypos[,c("dom_ID","PFAM_ID","wt_seq","pos_in_uniprot","wt_aa","cdd_ID_description","cdd_description","merged_esm1v_residual")]
+colnames(supp_table_4)<-c("dom_ID","PFAM_ID","wt_seq","position","wt_aa","CDD_ID_description","CDD_description","residual")
+
+write.table(supp_table_4,
+            file="output_files/Supplementary_Table_3_esm1v_residuals.txt",
+            quote=FALSE,
+            sep="\t",
+            row.names=FALSE)
+
+```
+
+
+```{r paint structures with residuals}
+
+esm1v_residuals_all_mutations_merged_bypos[dom_ID=="Q15811_PF07653_1003",dom_ID:="Q15811_PF00018_1003"]
+
+library(bio3d)
+
+paint_structure<-function(domid){
+
+
+fitness_summary<-esm1v_residuals_all_mutations_merged_bypos[dom_ID==domid,]
+
+structure<-read.pdb(paste("analysis_files/pdb_files/",domid,".pdb",sep=""))
+
+for(i in min(structure$atom$resno):max(structure$atom$resno)){
+structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-0
+}
+for(i in min(fitness_summary$pos_in_uniprot,na.rm = TRUE):max(fitness_summary$pos_in_uniprot,na.rm = TRUE)){
+if (length(fitness_summary[pos_in_uniprot==i,]$merged_esm1v_residual)!=0){
+      structure$atom$b[structure$atom$resno==i & structure$atom$chain=="A"]<-fitness_summary[pos_in_uniprot==i,]$merged_esm1v_residual*(-1)
+}}
+  
+write.pdb(structure,file=paste0("output_files/esm1v_residuals/",domid,"_","esm1vres_wmean.pdb",collapse=""))
+}
+
+
+for (domid in unique(esm1v_residuals_all_mutations_merged_bypos$dom_ID)){
+  paint_structure(domid)}
+
+
+```
+
+
+

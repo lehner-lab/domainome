@@ -1,0 +1,224 @@
+---
+title: "20240201_clinvar_homologs_merged"
+author: "Toni Beltran"
+date: "01/02/2024"
+output: html_document
+---
+
+```{r load data}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+clinvar_directmerge<-fread("analysis_files/clinical_variants_mochi_inferred_clinvar_labels.txt")
+clinvar_proteinsAPI<-fread("analysis_files/clinical_variants_mochi_inferred_proteinAPI_labels.txt")
+colnames(clinvar_proteinsAPI)[7]<-"geneid"
+
+clinvar_directmerge[,variant:=paste(geneid,pos,id,sep="_")]
+clinvar_proteinsAPI[,variant:=paste(geneid,pos,id,sep="_")]
+
+
+clinvar_directmerge[,variant_ID_uniprot:=paste(uniprot_ID,"_",PFAM_ID,"_",wt_aa_1letter,pos,mut_aa_1letter,sep="")]
+clinvar_proteinsAPI[,variant_ID_uniprot:=paste(uniprot_ID,"_",PFAM_ID,"_",wt_aa.x,pos,mut_aa,sep="")]
+
+clinvar_directmerge[clinical_class=="Conflicting",clinical_class:="Uncertain"]
+clinvar_directmerge[clinical_class=="VUS",clinical_class:="Uncertain"]
+
+
+merge_variants<-merge(clinvar_directmerge[,c("geneid","variant","clinical_class","id","PFAM_ID","PFAM_entry","variant_ID_uniprot")],
+                      clinvar_proteinsAPI[,c("geneid","variant","clinical_class","id","PFAM_ID","PFAM_entry","variant_ID_uniprot")],
+                      by=c("geneid","variant","id","PFAM_ID","variant_ID_uniprot"),all=TRUE)
+
+merge_variants<-merge_variants[!grep("=",id),]
+
+
+merge_variants[clinical_class.x=="Uncertain" | clinical_class.y=="Uncertain",class:="Uncertain"]
+merge_variants[clinical_class.x=="Pathogenic" | clinical_class.y=="Pathogenic",class:="Pathogenic"]
+merge_variants[clinical_class.x=="Benign" | clinical_class.y=="Benign",class:="Benign"]
+merge_variants[clinical_class.x=="Pathogenic" & clinical_class.y=="Benign",class:="Uncertain"]
+merge_variants[clinical_class.x=="Benign" & clinical_class.y=="Pathogenic",class:="Uncertain"]
+
+table(merge_variants$clinical_class.x)
+table(merge_variants$clinical_class.y)
+
+#final counts
+table(merge_variants$class)
+
+#load mochi weights and merge
+#read weights and bind into a single table, remove WT weights
+pfamids<-fread("analysis_files/homolog_mochi_input_files/PFAM_IDs",header=FALSE)$V1  
+
+read_weights<-function(family,fit_type){
+
+weights<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_",fit_type,"/weights/weights_Folding.txt",sep=""))
+weights[,mut_aa:=substr(id,nchar(id),nchar(id))]
+weights[id=="WT",mut_aa:=NA]
+weights$mut_aa<-factor(weights$mut_aa,
+                       levels=str_split("QNSTDEKRHGPCMAILVFYW","")[[1]])
+
+features<-fread(paste("analysis_files/homolog_mochi_input_files/",family,"_features_solu.txt",sep=""))
+wt_weights<-features[SoluWeight!="",]$SoluWeight
+mut_weights<-weights[!is.na(`mean_kcal/mol`) & !(id %in% wt_weights),]
+
+if (fit_type=="folding_linear"){
+  mut_weights$`mean_kcal/mol`<-mut_weights$`mean_kcal/mol`*(-1)
+}
+
+unfolded<-quantile(mut_weights$`mean_kcal/mol`,probs=0.975)
+mut_weights[,mean_kcalmol_scaled:=`mean_kcal/mol`/unfolded]
+mut_weights[,std_kcalmol_scaled:=`std_kcal/mol`/unfolded]
+
+mut_weights<-mut_weights[,PFAM_ID:=family]
+
+return(mut_weights)
+
+}
+
+homochi_weights<-data.table()
+for (pfamid in pfamids){
+  homochi_weights<-rbind(homochi_weights,read_weights(pfamid,"folding"))
+}
+
+homochi_weights[,z:=mean_kcalmol_scaled/std_kcalmol_scaled]
+homochi_weights[,p:=1-pnorm(z)]
+homochi_weights[,fdr:=p.adjust(p,method="fdr")]
+
+homochi_weights[,destab:=FALSE]
+homochi_weights[,strongly_destab:=FALSE]
+homochi_weights[mean_kcalmol_scaled>0 & fdr<0.1,destab:=TRUE]
+homochi_weights[mean_kcalmol_scaled>0.3 & fdr<0.1,strongly_destab:=TRUE]
+
+
+#merge with clinical variants
+table(merge_variants$class)
+
+clinical_variants_mochiweights<-merge(merge_variants,homochi_weights,by=c("id","PFAM_ID"),all=TRUE)
+clinical_variants_mochiweights<-clinical_variants_mochiweights[!is.na(`mean_kcal/mol`),]
+
+table(clinical_variants_mochiweights$class)
+table(clinical_variants_mochiweights[class=="Pathogenic",]$PFAM_ID)
+
+#annotate variants with fitness measurements vs variants with just inferred energies
+#how much expansion in pathogenic variants
+
+measured_variant_data<-fread("analysis_files/clinical_variants_with_fitnessdata.txt")
+measured_variant_data[,variant_ID_uniprot:=paste(uniprot_ID,"_",PFAM_ID,"_",wt_aa,pos_in_uniprot,mut_aa,sep="")]
+
+clinical_variants_mochiweights[!(variant_ID_uniprot %in% measured_variant_data$variant_ID_uniprot),measured:="no"]
+clinical_variants_mochiweights[variant_ID_uniprot %in% measured_variant_data$variant_ID_uniprot,measured:="yes"]
+
+#remove multiple isoforms for the same variant
+#save first gene_id-based variant list of measured variants
+measured_variants_geneid<-unique(clinical_variants_mochiweights[measured=="yes",]$variant)
+
+clinical_variants_mochiweights<-clinical_variants_mochiweights[!duplicated(variant),]
+clinical_variants_mochiweights[variant %in% measured_variants_geneid,measured:="yes"]
+
+table(clinical_variants_mochiweights$measured)
+table(clinical_variants_mochiweights[class=="Pathogenic",]$measured)
+table(clinical_variants_mochiweights$measured,clinical_variants_mochiweights$class)
+
+merged_counts<-data.table(t(table(clinical_variants_mochiweights[class=="Pathogenic",]$PFAM_ID,
+                     clinical_variants_mochiweights[class=="Pathogenic",]$measured)))
+colnames(merged_counts)<-c("measured","PFAM_ID","N")
+
+ggplot(merged_counts)+
+  geom_col(aes(y=PFAM_ID,fill=measured,x=N))+
+  theme_classic()+
+  xlab("number of pathogenic variants")
+ggsave("output_files/Figure6_variant_count_expansion.pdf")
+
+
+
+#plot density distributions
+
+ggplot(clinical_variants_mochiweights[!is.na(class),])+
+  geom_density(aes(x=mean_kcalmol_scaled,col=class),bw=0.075)+
+  coord_cartesian(xlim=c(-1,1.5))
+ggsave("output_files/Figure6_mochi_clinicalvariants_density.pdf")
+
+
+table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$class,
+      clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$destab)
+
+fisher.test(table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$class,
+      clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$destab))
+
+table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$class,
+      clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$strongly_destab)
+
+fisher.test(table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$class,
+      clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$strongly_destab))
+
+
+#plot proprotions
+clinical_variants_mochiweights[destab==FALSE,destab_class:="not destabilizing"]
+clinical_variants_mochiweights[destab==TRUE,destab_class:="destabilizing"]
+clinical_variants_mochiweights[strongly_destab==TRUE,destab_class:="strongly destabilizing"]
+
+destab_class_proportions<-data.table(prop.table(table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic","Uncertain"),]$class,
+      clinical_variants_mochiweights[class %in% c("Benign","Pathogenic","Uncertain"),]$destab_class),margin=1))
+destab_class_proportions$V2<-factor(destab_class_proportions$V2,
+                                    levels=c("not destabilizing","destabilizing","strongly destabilizing"))
+
+ggplot(destab_class_proportions)+
+  geom_col(aes(x=V1,fill=V2,y=N))+
+  theme_classic()
+ggsave("output_files/Figure6_mochi_destab_variant_clinical_proportions.pdf")
+
+
+#keep only domains with pathogenic variants
+pathogenic_domains_directmerge<-fread("analysis_files/pathogenic_domains_directmerge_PFAM_entries.txt",header = FALSE)
+pathogenic_domains_proteinsAPI<-fread("analysis_files/pathogenic_domains_uniprotAPI_PFAM_entries.txt",header=FALSE)
+pathogenic_domains<-unique(c(pathogenic_domains_directmerge$V1,pathogenic_domains_proteinsAPI$V1))
+
+clinical_variants_mochiweights_pathogenic_genes<-clinical_variants_mochiweights[PFAM_entry.x %in% pathogenic_domains | PFAM_entry.y %in% pathogenic_domains,]
+
+
+```
+
+#add gnomad variants in the domains with pathogenic mutations
+
+```{r gnomad variants}
+
+gnomad_variants<-fread("analysis_files/gnomad_v4_variants_in_mapped_domains_mochi.txt")
+
+gnomad_variants_mochiweights<-merge(gnomad_variants,homochi_weights_merged,by=c("id","PFAM_ID"),all=TRUE)
+
+
+gnomad_variants_mochiweights$af<-unlist(apply(gnomad_variants_mochiweights[,c("V12","V17")], MARGIN = 1, FUN = function(row){
+  if (is.na(as.numeric(row[1])) & is.na(as.numeric(row[2]))){return(NA)}
+  else{return(max(c(as.numeric(row[1]),as.numeric(row[2])),na.rm = TRUE))}
+}))
+
+gnomad_variants_mochiweights[af>1e-3,af_bin:="af>1e-3"]
+gnomad_variants_mochiweights[af>1e-4 & af<1e-3,af_bin:="1e-3>af>1e-4"]
+gnomad_variants_mochiweights[af>1e-5 & af<1e-4,af_bin:="1e-4>af>1e-5"]
+gnomad_variants_mochiweights[af<1e-5 & af>0,af_bin:="af<1e-5"]
+
+gnomad_variants_mochiweights$class<-rep(NA,nrow(gnomad_variants_mochiweights))
+gnomad_variants_mochiweights[,variant:=paste(geneid,"_",pos.y,"_",id,sep="")]
+gnomad_variants_mochiweights_pathogenic_genes<-gnomad_variants_mochiweights[PFAM_entry %in% pathogenic_domains,]
+
+clinical_variants_mochiweights$af<-rep(NA,nrow(clinical_variants_mochiweights))
+clinical_variants_mochiweights_pathogenic_genes$af<-rep(NA,nrow(clinical_variants_mochiweights_pathogenic_genes))
+
+ggplot(clinical_variants_mochiweights[!is.na(class),])+
+  geom_density(data=gnomad_variants_mochiweights_pathogenic_genes[af>1e-5,],
+               aes(x=mean_kcalmol_scaled),col="black",bw=0.075)+
+  geom_density(aes(x=mean_kcalmol_scaled,col=class),bw=0.075)+
+  coord_cartesian(xlim=c(-1,1.5))+
+  theme_classic()
+ggsave("output_files/Figure6_mochi_clinicalvariants_gnomad_density.pdf")
+
+
+
+```
+

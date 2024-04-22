@@ -1,0 +1,262 @@
+---
+title: "11_prepare_data_for_homolog_mochi"
+output: html_document
+date: "2024-03-07"
+---
+
+```{r prepare data for MoCHI}
+
+library(data.table)
+library(ggplot2)
+library(stringr)
+
+base_dir=""
+setwd(base_dir)
+
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+pfam_id_description<-fread("analysis_files/pfam_ID_description_table.txt")
+
+```
+
+
+
+```{r recode sequences and write MoCHI input files}
+
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt") 
+
+mutated_domainome[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
+mutated_domainome[, c("uniprot_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[1]]
+
+
+seqpos_to_alnpos<-fread("analysis_files/Pfam-A.human.seqpos_to_alnpos.domainomegenes")
+
+
+#merge tables
+colnames(seqpos_to_alnpos)<-c("PFAM_entry","pos_in_uniprot","aln_pos","wt_aa_pfamaln","Gene_ID","uniprot_ID","PFAM_ID","PFAM_ID.n","uniprot_ID_pos_in_uniprot")
+mutated_domainome[,uniprot_ID_pos_in_uniprot:=paste(uniprot_ID,pos_in_uniprot,sep="_")]
+
+mutated_domainome_alnpos<-merge(mutated_domainome,seqpos_to_alnpos,by=c("uniprot_ID_pos_in_uniprot","PFAM_ID","uniprot_ID"),all.x=TRUE)
+
+#check that mapping is correct by comparing wt_aa in our data to that extracted from PFAM alignments
+#1 genes is duplicated - with 1 of the two duplicates not mapped correctly - remove
+unique(mutated_domainome_alnpos[wt_aa!=wt_aa_pfamaln,]$uniprot_ID)
+
+mutated_domainome_alnpos<-mutated_domainome_alnpos[!(wt_aa!=wt_aa_pfamaln & WT==FALSE),]
+
+write.table(mutated_domainome_alnpos,
+            file="analysis_files/mutated_domainome_merged_filtered_alignmentpos.txt",
+            quote=FALSE,
+            sep="\t",
+            row.names=FALSE)
+
+```
+
+```{r plot fitness heatmaps by family, fig.width=20, fig.height=15}
+
+#store all mappings between recoded and original sequences for downstream analysis
+all_recoded_seqs<-data.table()
+pfam_alnpos_to_mochi_pos<-data.table()
+
+copies_per_family<-mutated_domainome_alnpos[PFAM_ID!="rockdoms",.(n=length(unique(dom_ID))),by="PFAM_ID"]
+
+for (family in copies_per_family[n>5,]$PFAM_ID){
+
+#trim alignment - aka remove positions where none of these domains have representation
+subset_family<-mutated_domainome_alnpos[PFAM_ID==family & STOP==FALSE,]
+subset_family$aln_pos<-factor(subset_family$aln_pos,
+                              levels=unique(subset_family$aln_pos)[order(unique(subset_family$aln_pos))])
+
+#plot fitness data
+
+subset_family[,scaled_gr_toplot:=scaled_gr]
+subset_family[scaled_gr<(-1.2),scaled_gr_toplot:=-1.2]
+
+print(ggplot(subset_family[WT==FALSE,])+
+  geom_tile(aes(fill=scaled_gr_toplot,x=aln_pos,y=mut_aa))+
+  geom_point(data=subset_family[dead=="yes",],aes(x=aln_pos,y=mut_aa),col="red")+
+  facet_wrap(~dom_ID)+
+  scale_fill_gradient2(limits=c(min(subset_family$scaled_gr_toplot),max(subset_family$scaled_gr_toplot)),low="red",mid="white",high="blue",midpoint = 0)+
+  theme(axis.text.x=element_blank(), 
+        axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(),  
+        axis.ticks.y=element_blank())+
+  xlab("alignment position")+
+  ggtitle(family))
+  ggsave(paste(paste("output_files/aligned_mutation_effects",family,"_aligned_scaled_gr.pdf",sep="")),limitsize = FALSE)
+ 
+
+#average by position and plot 
+
+subset_family_summarizedbypos<-subset_family[WT==FALSE,.(mean_gr=mean(growthrate,na.rm = TRUE),
+                                                  mean_delta_gr=mean(delta_gr,na.rm = TRUE),
+                                                  mean_scaled_gr=mean(scaled_gr,na.rm = TRUE),
+                                                  dom_ID=unique(dom_ID)),by=c("wt_seq","aln_pos")]
+
+
+print(ggplot(subset_family_summarizedbypos)+
+      geom_tile(aes(fill=mean_scaled_gr,x=aln_pos,y=wt_seq))+
+      scale_fill_gradient2(limits=c(min(subset_family_summarizedbypos$mean_scaled_gr),max(subset_family_summarizedbypos$mean_scaled_gr)),low="red",mid="white",high="blue",midpoint = 0)+
+  xlab("alignment position")+
+  ggtitle(family))
+  ggsave(paste(paste("output_files/aligned_mutation_effects_posavg",family,sep="_"),"pdf",sep = "."),limitsize = FALSE)
+
+  
+  
+   
+#recode sequences for MoCHI fitting
+
+#calculate required length of recoded sequence
+subset_family_aligned<-subset_family[!(is.na(aln_pos) & WT==FALSE),]
+wt_seq_to_remove<-names(table(subset_family_aligned$wt_seq)[which(table(subset_family_aligned$wt_seq)==1)])
+subset_family_aligned<-subset_family_aligned[!(wt_seq %in% wt_seq_to_remove),]
+subset_family_aligned$aln_pos_domainome<-as.numeric(subset_family_aligned$aln_pos)
+num_wts<-length(unique(subset_family_aligned$wt_seq))
+
+if (num_wts>=3){
+
+aln_len<-max(subset_family_aligned[WT==FALSE,]$aln_pos_domainome)
+len_recoded<-aln_len+ceiling(num_wts/20)
+
+#create all recoded wt seqs
+wt_seq<-paste0(rep("-",len_recoded),collapse="")
+wt_recoded<-c()
+for (i in seq(num_wts-1)){
+  pos<-trunc((i-1)/20)+aln_len+1
+  aa<-str_split("ACDEFGHIKLMNPQRSTVWY","")[[1]][i%%20]
+  if (i%%20==0){aa<-"Y"}
+  
+  background_seq<-rep("-",len_recoded)
+  background_seq[pos]<-aa
+  wt_recoded<-c(wt_recoded,(paste0(background_seq,collapse="")))
+}
+wt_recoded<-c(wt_recoded,wt_seq) 
+
+wt_recoded_mappings<-data.table(wt_seq=unique(subset_family_aligned$wt_seq),
+                                wt_fakeseq=wt_recoded)
+write.table(wt_recoded_mappings,
+            file=paste(paste("analysis_files/homolog_mochi_input_files/wt_weight_mappings",family,sep="_"),"txt",sep="."),
+            quote=FALSE,
+            row.names = FALSE)
+
+#save mappings between pfam alignments] positions and fitted mochi weight positions
+pos_in_pfamaln_vs_pos_in_recodedseq<-data.table(pos_recoded=subset_family_aligned$aln_pos_domainome,
+                                pos_pfam=subset_family_aligned$aln_pos)
+pos_in_pfamaln_vs_pos_in_recodedseq[,PFAM_ID:=family]
+
+pfam_alnpos_to_mochi_pos<-rbind(pfam_alnpos_to_mochi_pos,pos_in_pfamaln_vs_pos_in_recodedseq)
+
+#merge recoded wt with orginal sequences, and modify to introduce variants at aln positions
+subset_family_aligned<-merge(subset_family_aligned,wt_recoded_mappings,by="wt_seq")
+
+subset_family_aligned$recoded_seq<-unlist(apply(subset_family_aligned[,c("aln_pos_domainome","mut_aa","WT","wt_fakeseq")],MARGIN=1,FUN = function(row){
+
+          aln_pos_domainome<-as.numeric(row[1])
+          mut_aa<-row[2]
+          wt<-row[3]
+          base_seq<-row[4]
+                                     
+          if (wt==TRUE){return(base_seq)}
+          else {
+             base_seq_split<-str_split(base_seq,"")[[1]]
+             base_seq_split[aln_pos_domainome]<-mut_aa
+             return(paste(base_seq_split,collapse=""))
+          }
+}))
+
+#write MoCHI input files for each family
+#fitness, sigma, aa_seq, wt
+
+all_recoded_seqs<-rbind(all_recoded_seqs,subset_family_aligned[mean_count>29,c("aa_seq","recoded_seq","dom_ID","PFAM_ID","wt_seq")])
+
+#raw gr data
+subset_family_aligned_aPCA_forMoCHI<-subset_family_aligned[mean_count>29,c("recoded_seq","WT","growthrate","growthrate_sigma")]
+
+colnames(subset_family_aligned_aPCA_forMoCHI)<-c("aa_seq","WT","fitness","sigma")
+subset_family_aligned_aPCA_forMoCHI$WT<-as.character(subset_family_aligned_aPCA_forMoCHI$WT)
+subset_family_aligned_aPCA_forMoCHI[,WT:=""]
+subset_family_aligned_aPCA_forMoCHI[aa_seq==wt_seq,WT:="TRUE"]
+subset_family_aligned_aPCA_forMoCHI[,Nham_aa:=len_recoded-str_count(aa_seq,"-")]
+
+write.table(subset_family_aligned_aPCA_forMoCHI[!is.na(fitness),],
+            file=paste(paste("analysis_files/homolog_mochi_input_files/",family,sep=""),"aPCA_fitness_forMoCHI.txt",sep="_"),
+            row.names = FALSE,quote = FALSE,sep = "\t")
+
+write.table(subset_family_aligned[,c("PFAM_ID","dom_ID","pos","pos_in_uniprot.x","aln_pos_domainome","aln_pos")],
+            file=paste(paste("analysis_files/homolog_mochi_input_files/",family,sep=""),"mochi_pos_to_PFAM_aln_pos.txt",sep="_"),
+            row.names = FALSE,quote = FALSE,sep = "\t")
+
+
+#write feature table to fit slope and intercept to map solubility boundaries to folding
+variant_list<-unique(unlist(lapply(subset_family_aligned_aPCA_forMoCHI[!is.na(fitness),]$aa_seq,
+                     FUN=function(string){
+                        positions<-which(strsplit(string,"")[[1]]!="-")
+                        mut_aas<-strsplit(string,"")[[1]][positions]
+                        
+                        if (length(positions)>1){return(paste(rep("-",length(positions)),positions,mut_aas,sep=""))}
+                        else if (length(positions)==0){return("WT")}
+                     })))
+positions<-as.numeric(substr(variant_list,2,nchar(variant_list)-1))
+
+solu_terms_df<-data.table(Folding=variant_list,
+                           SoluWeight=variant_list,
+                           SoluBias=variant_list,
+                           pos=positions)
+solu_terms_df[pos<=aln_len,SoluWeight:=""]
+solu_terms_df[pos<=aln_len,SoluBias:=""]
+
+write.table(solu_terms_df[,c("Folding","SoluWeight","SoluBias")],
+            file=paste("analysis_files/homolog_mochi_input_files/",paste(family,"features_solu.txt",sep="_"),sep=""),
+            row.names = FALSE, quote = FALSE, sep = "\t")
+
+#write tables excluding a single domain at a time
+#for families with at least 10 homologs
+
+if (num_wts>9){
+
+wt_out_df<-data.table(wt_out=unique(subset_family_aligned$wt_seq),
+                        wt_index=seq(num_wts))
+write.table(wt_out_df,
+            file=paste("analysis_files/homolog_mochi_input_files/leave_one_out/",paste(family,"left_out_domains_indices.txt",sep="_"),sep=""),
+            row.names = FALSE, quote = FALSE, sep = "\t")
+  
+for (i in seq(num_wts)){
+
+wt_out<-wt_out_df[wt_index==i,]$wt_out
+
+subset_family_aligned_wtout<-subset_family_aligned[!(wt_seq==wt_out & WT==FALSE),]
+
+subset_family_aligned_aPCA_forMoCHI_wtout<-subset_family_aligned_wtout[mean_count>29,c("recoded_seq","WT","growthrate","growthrate_sigma")]  
+
+colnames(subset_family_aligned_aPCA_forMoCHI_wtout)<-c("aa_seq","WT","fitness","sigma")
+subset_family_aligned_aPCA_forMoCHI_wtout$WT<-as.character(subset_family_aligned_aPCA_forMoCHI_wtout$WT)
+subset_family_aligned_aPCA_forMoCHI_wtout[,WT:=""]
+subset_family_aligned_aPCA_forMoCHI_wtout[aa_seq==wt_seq,WT:="TRUE"]
+subset_family_aligned_aPCA_forMoCHI_wtout[,Nham_aa:=len_recoded-str_count(aa_seq,"-")]
+
+write.table(subset_family_aligned_aPCA_forMoCHI_wtout[!is.na(fitness),],
+            file=paste("analysis_files/homolog_mochi_input_files/leave_one_out/",family,"_",i,"_aPCA_fitness_forMoCHI.txt",sep=""),
+            row.names = FALSE,quote = FALSE,sep = "\t")
+  
+  
+}
+}
+
+}}
+
+
+write.table(all_recoded_seqs,
+            file="analysis_files/homolog_mochi_input_files/aa_seq_to_recoded_seq_mappings.txt",
+            row.names = FALSE, quote = FALSE, sep = "\t")
+
+write.table(pfam_alnpos_to_mochi_pos,
+            file="analysis_files/homolog_mochi_input_files/mochi_alnpos_to_pfam_alnpos.txt",
+            row.names = FALSE, quote = FALSE, sep = "\t")
+
+
+
+```
+
+
+
+
+

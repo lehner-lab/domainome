@@ -1,0 +1,243 @@
+---
+title: "homolog mochi left out domains"
+output: html_document
+date: "2024-03-12"
+---
+
+
+```{r cars}
+
+library(data.table)
+library(ggplot2)
+library(stringr)
+library(ggpubr)
+
+theme_set(theme_classic())
+
+base_dir=""
+setwd(base_dir)
+
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs.txt")
+
+PFAM_ID_leftoutdomains<-c("PF00018","PF00030","PF00046","PF00096","PF00105","PF00157","PF00249","PF00397","PF00505","PF00595","PF00628","PF00641","PF01846","PF02037")
+
+
+performance_summary<-c()
+
+for (family in PFAM_ID_leftoutdomains){
+
+#build table of observed vs predicted
+leftout_list<-fread(paste("analysis_files/homolog_mochi_input_files/leave_one_out/",family,"_left_out_domains_indices.txt",sep=""))
+
+#calculate average and minimum hd to sequences that go into training
+wt_domains_aligned<-fread(paste("analysis_files/homolog_mochi_input_files/leave_one_out/",family,"_left_out_domains.aligned",sep=""),header = FALSE)
+colnames(wt_domains_aligned)<-c("aligned_seq","wt_seq")
+
+blosum62<- as.matrix(fread("analysis_files/homolog_mochi_input_files/leave_one_out/blosum62"),rownames=1)
+
+
+blosum62_distance <- function(seq1, seq2) {
+  dist <- 0
+  for (i in 1:nchar(seq1)) {
+    if (substr(seq1, i, i) != "-" & substr(seq2, i, i) != "-") {
+      dist <- dist + blosum62[substr(seq1, i, i), substr(seq2, i, i)]
+    }
+  }
+  return(dist)
+}
+
+doms<-c()
+mean_hd<-c()
+median_hd<-c()
+min_hd<-c()
+mean_blosumd<-c()
+median_blosumd<-c()
+min_blosumd<-c()
+mean_blosumd_gaps<-c()
+median_blosumd_gaps<-c()
+min_blosumd_gaps<-c()
+
+for (query_dom in leftout_list$wt_out){
+  
+  query<-wt_domains_aligned[wt_seq==query_dom,]$aligned_seq
+  hds<-c()
+  blosumds<-c()
+
+  for (subject_dom in unique(wt_domains_aligned$wt_seq)){
+  
+    if (query_dom != subject_dom){
+ 
+          subject<-wt_domains_aligned[wt_seq==subject_dom,]$aligned_seq
+          hds<-c(hds,length(which(str_split(query,"")[[1]]!=str_split(subject,"")[[1]])))
+          blosumds<-c(blosumds,blosum62_distance(query,subject))
+    }}
+
+  doms<-c(doms,query_dom)
+  mean_hd<-c(mean_hd,mean(hds))
+  median_hd<-c(median_hd,median(hds))
+  min_hd<-c(min_hd,min(hds))
+  
+  mean_blosumd<-c(mean_blosumd,mean(blosumds))
+  median_blosumd<-c(median_blosumd,median(blosumds))
+  min_blosumd<-c(min_blosumd,min(blosumds))
+
+}
+
+genetic_distances<-data.table(doms,mean_hd,median_hd,min_hd,mean_blosumd,median_blosumd,min_blosumd)
+
+#load predictions for each left out domain and calculate performance
+aa_seq_to_recoded_seq<-fread("analysis_files/homolog_mochi_input_files/aa_seq_to_recoded_seq_mappings.txt")
+colnames(aa_seq_to_recoded_seq)[1:2]<-c("aa_seq_original","aa_seq")
+
+doms<-c()
+pearson_r_obs_vs_predicted<-c()
+spearman_r_obs_vs_predicted<-c()
+n<-c()
+rep_pearson_r<-c()
+rep_spearman_r<-c()
+
+pearson_r_obs_vs_predicted_byrep<-c()
+spearman_r_obs_vs_predicted_byrep<-c()
+
+mpnn_pearson_r<-c()
+mpnn_spearman_r<-c()
+
+for (dom in leftout_list$wt_out){
+  
+  dom_index<-leftout_list[wt_out==dom,]$wt_index
+
+  predictions_supp<-fread(paste("analysis_files/homolog_mochi_input_files/leave_one_out/",family,"_",dom_index,"_folding/task_1/predictions/predicted_phenotypes_supp.txt",sep=""))
+  predictions_all<-fread(paste("analysis_files/homolog_mochi_input_files/leave_one_out/",family,"_",dom_index,"_folding/task_1/predictions/predicted_phenotypes_all.txt",sep=""))
+
+  predictions_supp<-predictions_supp[!(aa_seq %in% predictions_all$aa_seq),]
+
+  predictions_supp<-merge(predictions_supp,aa_seq_to_recoded_seq,
+                        by="aa_seq")
+  
+  
+
+  doms<-c(doms,dom)
+  pearson_r_obs_vs_predicted<-c(pearson_r_obs_vs_predicted,cor(predictions_supp$fitness,predictions_supp$mean,use="pairwise.complete.obs",method="pearson"))
+  spearman_r_obs_vs_predicted<-c(spearman_r_obs_vs_predicted,cor(predictions_supp$fitness,predictions_supp$mean,use="pairwise.complete.obs",method="spearman"))
+  n<-c(n,nrow(predictions_supp))
+
+  fitness_data<-mutated_domainome[aa_seq %in% predictions_supp$aa_seq_original,]
+  fitness_data<-merge(fitness_data,predictions_supp,by.x="aa_seq",by.y="aa_seq_original")
+
+  rep_pearson_r<-c(rep_pearson_r,mean(c(cor(fitness_data$growthrate1,fitness_data$growthrate2,use="pairwise.complete.obs"),
+                                        cor(fitness_data$growthrate1,fitness_data$growthrate3,use="pairwise.complete.obs"),
+                                        cor(fitness_data$growthrate2,fitness_data$growthrate3,use="pairwise.complete.obs"))))
+  rep_spearman_r<-c(rep_spearman_r,mean(c(cor(fitness_data$growthrate1,fitness_data$growthrate2,use="pairwise.complete.obs",method="spearman"),
+                                        cor(fitness_data$growthrate1,fitness_data$growthrate3,use="pairwise.complete.obs",method="spearman"),
+                                        cor(fitness_data$growthrate2,fitness_data$growthrate3,use="pairwise.complete.obs",method="spearman"))))
+  
+  pearson_r_obs_vs_predicted_byrep<-c(pearson_r_obs_vs_predicted_byrep,mean(c(cor(fitness_data$mean,fitness_data$growthrate1,use="pairwise.complete.obs"),
+                                        cor(fitness_data$mean,fitness_data$growthrate2,use="pairwise.complete.obs"),
+                                        cor(fitness_data$mean,fitness_data$growthrate3,use="pairwise.complete.obs"))))
+  spearman_r_obs_vs_predicted_byrep<-c(spearman_r_obs_vs_predicted_byrep,mean(c(cor(fitness_data$mean,fitness_data$growthrate1,use="pairwise.complete.obs",method="spearman"),
+                                        cor(fitness_data$mean,fitness_data$growthrate2,use="pairwise.complete.obs",method="spearman"),
+                                        cor(fitness_data$mean,fitness_data$growthrate3,use="pairwise.complete.obs",method="spearman"))))
+
+  mpnn_pearson_r<-c(mpnn_pearson_r,cor(fitness_data$fitness.x,fitness_data$thermoMPNN_ddG,use="pairwise.complete.obs",method="pearson"))
+  mpnn_spearman_r<-c(mpnn_spearman_r,cor(fitness_data$fitness.x,fitness_data$thermoMPNN_ddG,use="pairwise.complete.obs",method="spearman"))
+
+  
+}
+
+performance_on_leftout_doms<-data.table(doms,pearson_r_obs_vs_predicted,spearman_r_obs_vs_predicted,n,rep_pearson_r,rep_spearman_r,pearson_r_obs_vs_predicted_byrep,spearman_r_obs_vs_predicted_byrep,mpnn_pearson_r,mpnn_spearman_r,fev)
+performance_on_leftout_doms_geneticdistance<-merge(performance_on_leftout_doms,genetic_distances,by="doms")
+
+performance_on_leftout_doms_geneticdistance[,PFAM_ID:=family]
+
+performance_summary<-rbind(performance_summary,performance_on_leftout_doms_geneticdistance)
+
+}
+
+
+performance_summary[,percent_explainable_variance_pearson:=pearson_r_obs_vs_predicted_byrep**2/rep_pearson_r**2]
+performance_summary[,percent_explainable_variance_spearman:=spearman_r_obs_vs_predicted_byrep**2/rep_spearman_r**2]
+
+
+median(performance_summary$pearson_r_obs_vs_predicted_byrep)
+median(performance_summary$rep_pearson_r)
+
+median(performance_summary$spearman_r_obs_vs_predicted_byrep)
+median(performance_summary$rep_spearman_r)
+
+median(performance_summary$percent_explainable_variance_pearson)
+median(performance_summary$percent_explainable_variance_spearman)
+
+#compare mochi to thermoMPNN
+performance_summary_mochi<-performance_summary[,c("PFAM_ID","doms","pearson_r_obs_vs_predicted")]
+performance_summary_mpnn<-performance_summary[,c("PFAM_ID","doms","mpnn_pearson_r")]
+performance_summary_mochi[,method:="MoCHI"]
+performance_summary_mpnn[,method:="thermoMPNN"]
+performance_summary_mpnn$mpnn_pearson_r<-performance_summary_mpnn$mpnn_pearson_r*(-1)
+colnames(performance_summary_mpnn)[3]<-"pearson_r_obs_vs_predicted"
+
+performance_summary_mochi_vs_mpnn<-rbind(performance_summary_mochi,performance_summary_mpnn)
+                                         
+performance_summary_mochi_vs_mpnn_medians<-performance_summary_mochi_vs_mpnn[method=="MoCHI",.(median_r=median(pearson_r_obs_vs_predicted)),by="PFAM_ID"]
+performance_summary_mochi_vs_mpnn$PFAM_ID<-factor(performance_summary_mochi_vs_mpnn$PFAM_ID,
+                                                  levels=performance_summary_mochi_vs_mpnn_medians[order(median_r,decreasing = TRUE),]$PFAM_ID)
+
+ggplot(performance_summary_mochi_vs_mpnn)+
+  geom_violin(aes(x=PFAM_ID,y=pearson_r_obs_vs_predicted,fill=method),position = position_dodge(0.9),scale="width")+
+  geom_boxplot(aes(x=PFAM_ID,y=pearson_r_obs_vs_predicted,fill=method),position = position_dodge(0.9),outlier.shape = NA,width=0.15)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ggsave("output_files/Figure_6j_mochi_vs_thermompnn_leftoutdomains.pdf")
+
+
+```
+
+
+```{r plot performance, fig.height=6,fig.width=8}
+
+#plot performance vs genetic distance
+ggplot(performance_summary,aes(y=spearman_r_obs_vs_predicted,x=mean_hd))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  stat_cor(label.y.npc="bottom", label.x.npc = "left",size=3)+
+  facet_wrap(~PFAM_ID,scales = "free_x",ncol=5)
+ggsave("output_files/ED_Figure_7c_performance_leftoutdomains_vs_hammingd.pdf")
+
+```
+```{r plot performance homeodomains}
+#plot performance for homeodomains
+
+ggplot(performance_summary[PFAM_ID=="PF00046",],aes(y=pearson_r_obs_vs_predicted,x=mean_hd))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  stat_cor(label.y.npc="bottom", label.x.npc = "left")
+ggsave("output_files/Figure_6g_performance_homeodomains_leftoutdomains_vs_hd.pdf")
+
+performance_summary[doms=="FKEKSRSVLREWYAHNPYPSPREKRELAEATGLTTTQVSNWFKNRRQRDR",homeodomain_label:='SIX2']
+performance_summary[doms=="RHRTTFTSLQLEELEKVFQKTHYPDVYVREQLALRTELTEARVQVWFQNRRAKWRK",homeodomain_label:='ALX']
+performance_summary[doms=="RERTTFTRAQLDVLEALFAKTRYPDIFMREEVALKINLPESRVQVWFKNRRAKCRQ",homeodomain_label:='OTX2']
+performance_summary[doms=="RERTTFTRSQLEELEALFAKTQYPDVYAREEVALKINLPESRVQVWFKNRRAKCRQ",homeodomain_label:='CRX']
+
+
+
+
+ggplot(performance_summary[PFAM_ID=="PF00046",],aes(y=pearson_r_obs_vs_predicted,x=mean_hd))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  stat_cor(label.y.npc="bottom", label.x.npc = "left")+
+  geom_text(aes(label=homeodomain_label))
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,92 @@
+---
+title: "clinical variants uniprot"
+output: html_document
+date: "2024-03-01"
+---
+
+```{r load and merge clinical variants}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+
+#load mutated domainome
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+
+#load variant data
+variant_data_uniprot<-fread("analysis_files/clinical_variants_uniprot_proteinAPI_domainomegenes.txt")
+colnames(variant_data_uniprot)<-c("uniprot_ID","uniprot_entry","gene_name","sequence","type","begin","end","wt_aa","mut_aa","genomic_location","codon","consequence","source","str(somatic_status)","clinvar_id","exac_id","topmed_id","gnomad_id","NCITCGA_id","NCITCGA_cosmic_id","clingen_id","dbSNP_id","ensembl_id","str(sift_score)","sift_class","str(polyphen_score)","polyphen_class","clinvar_class","ensembl_class","uniprot_class","NCITCGA_class","descr")
+
+mutated_domainome[, c("uniprot_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[1]]
+
+mutated_domainome_variants<-merge(mutated_domainome,variant_data_uniprot,by.x=c("uniprot_ID","pos_in_uniprot","wt_aa","mut_aa"), by.y=c("uniprot_ID","begin","wt_aa","mut_aa"))
+mutated_domainome_variants_all<-merge(mutated_domainome,variant_data_uniprot,by.x=c("uniprot_ID","pos_in_uniprot","wt_aa","mut_aa"), by.y=c("uniprot_ID","begin","wt_aa","mut_aa"),all.x = TRUE)
+
+mutated_domainome_variants<-mutated_domainome_variants[!duplicated(aa_seq),]
+mutated_domainome_variants_all<-mutated_domainome_variants_all[!duplicated(aa_seq),]
+
+table(mutated_domainome_variants$clinvar_class)
+table(mutated_domainome_variants$ensembl_class)
+table(mutated_domainome_variants$sift_class)
+table(mutated_domainome_variants$polyphen_class)
+
+
+ggplot(mutated_domainome_variants[consequence=="missense" & !(clinvar_class==""),])+
+  geom_density(aes(x=scaled_gr,col=clinvar_class))
+ggplot(mutated_domainome_variants[consequence=="missense" & !(ensembl_class==""),])+
+  geom_density(aes(x=scaled_gr,col=ensembl_class))
+
+ggplot(mutated_domainome_variants[consequence=="missense" & !(sift_class==""),])+
+  geom_density(aes(x=scaled_gr,col=sift_class))
+ggplot(mutated_domainome_variants[consequence=="missense" & !(polyphen_class==""),])+
+  geom_density(aes(x=scaled_gr,col=polyphen_class))
+
+
+mutated_domainome_variants[clinvar_class %in% c("Pathogenic","Likely pathogenic","Risk factor"),clinvar:="Pathogenic"]
+mutated_domainome_variants[clinvar_class %in% c("Benign","Likely benign"),clinvar:="Benign"]
+mutated_domainome_variants[clinvar_class %in% c("Conflicting interpretations of pathogenicity"),clinvar:="Conflicting"]
+mutated_domainome_variants[clinvar_class %in% c("Variant of uncertain significance"),clinvar:="Uncertain"]
+mutated_domainome_variants[clinvar_class %in% c(""),clinvar:="no annotation"]
+
+mutated_domainome_variants[ensembl_class %in% c("Pathogenic","Likely pathogenic","Risk factor"),ensembl:="Pathogenic"]
+mutated_domainome_variants[ensembl_class %in% c("Benign","Likely benign"),ensembl:="Benign"]
+mutated_domainome_variants[ensembl_class %in% c("Variant of uncertain significance"),ensembl:="Uncertain"]
+mutated_domainome_variants[ensembl_class %in% c(""),ensembl:="no annotation"]
+
+table(mutated_domainome_variants$clinvar,mutated_domainome_variants$ensembl)
+
+mutated_domainome_variants[clinvar=="Pathogenic" | ensembl=="Pathogenic",clinical_class:="Pathogenic"]
+mutated_domainome_variants[clinvar=="Benign" | ensembl=="Benign",clinical_class:="Benign"]
+mutated_domainome_variants[clinvar=="Conflicting" | ensembl=="Conflicting",clinical_class:="Conflicting"]
+mutated_domainome_variants[clinvar=="Uncertain" | ensembl=="Uncertain",clinical_class:="Uncertain"]
+mutated_domainome_variants[clinvar=="no annotation" & ensembl=="no annotation",clinical_class:="no annotation"]
+
+
+ggplot(mutated_domainome_variants[consequence=="missense",])+
+  geom_density(aes(x=scaled_gr,col=clinvar))
+ggplot(mutated_domainome_variants[consequence=="missense",])+
+  geom_density(aes(x=scaled_gr,col=clinical_class))
+
+table(mutated_domainome_variants[consequence=="missense",]$clinvar)
+table(mutated_domainome_variants[consequence=="missense",]$clinical_class)
+
+write.table(mutated_domainome_variants[consequence=="missense" & clinical_class != "no annotation",c("aa_seq","clinical_class")],file="analysis_files/clinical_variants_measured_uniprot_proteinAPI_labels.txt")
+
+
+````
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,280 @@
+---
+title: "validation"
+author: "Toni Beltran"
+date: "28/02/2024"
+output: html_document
+---
+
+
+```{r load data}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+library(ggpubr)
+
+
+base_dir=""
+setwd(base_dir)
+
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
+
+#load protherm data
+protherm_data<-data.table(read.table("analysis_files/protherm_measurements_PMIDinfo.txt",
+                          sep = "\t",header = TRUE))
+variants_to_remove<-c("P00651_PF00545_48_F72E", "P00651_PF00545_48_S101A",  "P00651_PF00545_48_V73G", "P00651_PF00545_48_Y123G",   "P32081_PF00313_3_N11S" )
+#they are wrongly encoded in protherm/thermomut with WT and mut aa swapped
+
+protherm_data<-protherm_data[!variant_ID %in% variants_to_remove,]
+protherm_data$uniprot_ID_variant<-unlist(lapply(protherm_data$variant_ID,FUN=function(string){
+  return(paste(strsplit(string,"_")[[1]][1],strsplit(string,"_")[[1]][4],sep="_"))
+}))
+
+#merge
+mutated_domainome$uniprot_ID<-unlist(lapply(mutated_domainome$dom_ID,FUN=function(string){
+  return(strsplit(string,"_")[[1]][1])
+}))
+mutated_domainome[,variant:=paste(wt_aa,pos_in_uniprot,mut_aa,sep="")]
+mutated_domainome[,uniprot_ID_variant:=paste(uniprot_ID,variant,sep="_")]
+
+mutated_domainome_invitro_ddGs<-merge(mutated_domainome,protherm_data,by="uniprot_ID_variant")
+mutated_domainome_invitro_ddGs<-rbind(mutated_domainome[WT==TRUE & dom_ID %in% mutated_domainome_invitro_ddGs$dom_ID,],mutated_domainome_invitro_ddGs,fill=TRUE)
+mutated_domainome_invitro_ddGs[WT==TRUE,ddG:=0]
+
+#load rank info
+ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
+
+#remove in vitro data from studies with very few or repeated variants
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="Q13526_PF00397_1" & PMID=="25837727"),]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P02640_PF02209_762" & PMID=="Bi, Yuan. Studies of the folding and stability of the villin headpiece subdomain. Diss. The Graduate School, Stony Brook University: Stony Brook, NY., 2008."),]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P32081_PF00313_1" & PMID=="17188709"),]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P01053_PF00280_22" & PMID=="7490748"),]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P02417_PF01281_1" & PMID %in% c("12589767","12795600","15099748","16165156","16906769")),]
+
+mutated_domainome_invitro_ddGs[,invitro_ID:=paste(uniprot_ID_variant,ddG,PMID,sep="_")]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!duplicated(invitro_ID),]
+
+#removing P36075_PF02845_9 as all the measured mutations are in the same residue - biased
+#removing P02640_PF02209_792 as we already have the longer,better measured version of the domain
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P36075_PF02845_9"),]
+mutated_domainome_invitro_ddGs<-mutated_domainome_invitro_ddGs[!(dom_ID=="P02640_PF02209_792"),]
+
+```
+
+
+```{r plot correlations}
+
+my_fn_WT <- function(data, mapping, ...){
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_point(aes(col=WT),size=0.25) +
+    scale_fill_viridis()
+  p
+}
+
+cors_to_ddG<-c()
+cors_to_ddG_spearman<-c()
+cors_to_ddG_individualreps<-c()
+cors_to_ddG_spearman_individualreps<-c()
+cors_replicates_individualreps<-c()
+cors_replicates_spearman_individualreps<-c()
+gr_range_ddGvars<-c()
+ddG_range<-c()
+nvars_ddG<-c()
+domids<-c()
+
+for (domid in unique(mutated_domainome_invitro_ddGs$dom_ID)){
+
+  subset<-mutated_domainome[dom_ID==domid & mean_count>5,]
+  subset_ddG<-mutated_domainome_invitro_ddGs[dom_ID==domid & mean_count>5,]
+  
+  #plot correlations and calculate QC metrics if
+  #at least 10 in vitro measured variants
+  #range of in vitro measured variants of 2 kcal/mol
+  #range of measured growthrates for measured variants of 0.05
+  
+  if (nrow(subset_ddG[!is.na(ddG) & !is.na(growthrate),])>9 & diff(range(subset_ddG$ddG,na.rm=TRUE))>2 & diff(range(subset_ddG$growthrate,na.rm=TRUE))>0.075){
+  
+  nvars_ddG<-c(nvars_ddG,nrow(subset_ddG[!is.na(ddG) & !is.na(growthrate),]))
+  domids<-c(domids,domid)
+  ddG_range<-c(ddG_range,diff(range(subset_ddG$ddG,na.rm=TRUE)))
+  gr_range_ddGvars<-c(gr_range_ddGvars,diff(range(subset_ddG$growthrate,na.rm=TRUE)))
+  
+  cors_to_ddG<-c(cors_to_ddG,cor(subset_ddG$ddG,subset_ddG$growthrate,use="pairwise.complete.obs",method = "pearson"))
+  cors_to_ddG_spearman<-c(cors_to_ddG_spearman,cor(subset_ddG$ddG,subset_ddG$growthrate,use="pairwise.complete.obs",method = "spearman"))
+  
+  cors_to_ddG_individualreps<-c(cors_to_ddG_individualreps,
+                              mean(c(cor(subset_ddG$ddG,subset_ddG$growthrate1,use="pairwise.complete.obs",method = "pearson"),
+                                     cor(subset_ddG$ddG,subset_ddG$growthrate2,use="pairwise.complete.obs",method = "pearson"),
+                                     cor(subset_ddG$ddG,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "pearson"))))
+  cors_to_ddG_spearman_individualreps<-c(cors_to_ddG_spearman_individualreps,
+                              mean(c(cor(subset_ddG$ddG,subset_ddG$growthrate1,use="pairwise.complete.obs",method = "spearman"),
+                                     cor(subset_ddG$ddG,subset_ddG$growthrate2,use="pairwise.complete.obs",method = "spearman"),
+                                     cor(subset_ddG$ddG,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "spearman"))))
+  
+  cors_replicates_individualreps<-c(cors_replicates_individualreps,
+                              mean(c(cor(subset_ddG$growthrate1,subset_ddG$growthrate2,use="pairwise.complete.obs",method = "pearson"),
+                                     cor(subset_ddG$growthrate1,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "pearson"),
+                                     cor(subset_ddG$growthrate2,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "pearson"))))
+  cors_replicates_spearman_individualreps<-c(cors_replicates_spearman_individualreps,
+                              mean(c(cor(subset_ddG$growthrate1,subset_ddG$growthrate2,use="pairwise.complete.obs",method = "spearman"),
+                                     cor(subset_ddG$growthrate1,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "spearman"),
+                                     cor(subset_ddG$growthrate2,subset_ddG$growthrate3,use="pairwise.complete.obs",method = "spearman"))))
+  
+
+
+}}
+
+ivt_comparison_summary<-data.table(dom_ID=domids,cors_to_ddG,cors_to_ddG_spearman,gr_range_ddGvars,ddG_range,nvars_ddG,
+                                   cors_to_ddG_individualreps,cors_to_ddG_spearman_individualreps,cors_replicates_individualreps,
+                                   cors_replicates_spearman_individualreps)
+
+
+ivt_comparison_summary_dominfo<-merge(ivt_comparison_summary,ranked_domains,by="dom_ID",all.x=TRUE)
+
+ggplot(mutated_domainome_invitro_ddGs[dom_ID %in% ivt_comparison_summary_dominfo$dom_ID & mean_count>5,])+
+  geom_point(aes(x=ddG,y=growthrate),col="grey")+
+  scale_fill_viridis()+
+  stat_cor(aes(x=ddG,y=growthrate,label = ..r.label..),size=3.5,method="spearman")+
+  facet_wrap(~dom_ID)+
+  geom_smooth(aes(x=ddG,y=growthrate),method="lm",col="red")+
+  theme_classic()
+ggsave("output_files/ED_Figure_1c_correlations_to_invitro.pdf",height=5,width=6)
+
+
+median(ivt_comparison_summary_dominfo$cors_to_ddG_spearman)
+
+```
+
+
+```{r tsuboyama domains}
+
+overlapping_domains<-fread("analysis_files/domains_from_tsuboyama_rocklin_overlaps.txt")
+colnames(overlapping_domains)<-c("pdb_id","uniprot_ID","dom_ID","aa_seq_aPCA","aa_seq_Rocklin","overlap","offset","percent_overlap")
+
+rocklin_data<-fread("analysis_files/K50_dG_Dataset1_Dataset2_in_aPCA.csv")
+
+#merge mappings from Rocklin to aPCA to Rocklin data, and offset the positions
+rocklin_data$pdb_id<-unlist(lapply(rocklin_data$V1,FUN = function(string){
+  return(strsplit(string,".pdb")[[1]][1])
+}))
+
+rocklin_data<-merge(rocklin_data,overlapping_domains,by="pdb_id")
+rocklin_data<-rocklin_data[!(grep("del",V29)),]
+rocklin_data<-rocklin_data[!(grep("ins",V29)),]
+rocklin_data<-rocklin_data[!(grep("wt",V29)),]
+
+rocklin_data$pos<-as.numeric(unlist(lapply(rocklin_data$V29,FUN = function(string){
+  return(substr(string,2,nchar(string)-1)[[1]])
+})))
+rocklin_data$wt_aa<-unlist(lapply(rocklin_data$V29,FUN = function(string){
+  return(substr(string,1,1)[[1]])
+}))
+rocklin_data$mut_aa<-unlist(lapply(rocklin_data$V29,FUN = function(string){
+  return(substr(string,nchar(string),nchar(string))[[1]])
+}))
+rocklin_data[,pos_offset:=pos+offset]
+rocklin_data[,variant_in_dom:=paste(wt_aa,pos_offset,mut_aa,sep="")]
+
+mutated_domainome[,variant_in_dom:=paste(wt_aa,pos,mut_aa,sep="")]
+
+#merge with aPCA
+aPCA_rocklin_merged<-merge(rocklin_data,mutated_domainome,by=c("dom_ID","variant_in_dom"))
+aPCA_rocklin_merged$uniprot_ID<-aPCA_rocklin_merged$uniprot_ID.x
+aPCA_rocklin_merged$uniprot_ID.y<-NULL
+
+#convert ddG to numeric variable
+aPCA_rocklin_merged$rocklin_ddG<-as.numeric(aPCA_rocklin_merged$V35)
+aPCA_rocklin_merged_ddGs<-aPCA_rocklin_merged[!is.na(rocklin_ddG)]
+
+#calculate fraction folded using the boltzmann distribution
+aPCA_rocklin_merged_ddGs$dG<-as.numeric(aPCA_rocklin_merged_ddGs$V34)
+aPCA_rocklin_merged_ddGs[,fraction_folded:=(1/(1+exp(-dG/(0.001987*303))))]
+
+#calculate correlations by rocklin domain
+#do for domains with a percent overlap of 80% at least (overlap length/alignment length *100 > 80)
+#and with a range of aPCA growthrates in variants in common of at least 0.075
+
+cors_to_rocklin<-aPCA_rocklin_merged_ddGs[,.(pearson_r=cor(rocklin_ddG,growthrate,use="pairwise.complete.obs",method="pearson"),
+                                             spearman_r=cor(rocklin_ddG,growthrate,use="pairwise.complete.obs",method="spearman"),
+                                             pearson_r_ff=cor(fraction_folded,growthrate,use="pairwise.complete.obs",method="pearson"),
+                                             spearman_r_ff=cor(fraction_folded,growthrate,use="pairwise.complete.obs",method="spearman"),
+                                             dom_ID=unique(dom_ID),
+                                             percent_overlap=unique(percent_overlap),
+                                             range=diff(quantile(growthrate,probs = c(0.05,0.95),na.rm=TRUE)),
+                                             replicate_r_mean=mean(c(cor(growthrate1,growthrate2,use="pairwise.complete.obs",method="pearson"),
+                                                                     cor(growthrate1,growthrate3,use="pairwise.complete.obs",method="pearson"),
+                                                                     cor(growthrate2,growthrate3,use="pairwise.complete.obs",method="pearson"))),
+                                             ddG_r_mean=mean(c(cor(rocklin_ddG,growthrate1,use="pairwise.complete.obs",method="pearson"),
+                                                                     cor(rocklin_ddG,growthrate2,use="pairwise.complete.obs",method="pearson"),
+                                                                     cor(rocklin_ddG,growthrate3,use="pairwise.complete.obs",method="pearson")))),by="V30"]
+
+cors_to_rocklin<-cors_to_rocklin[percent_overlap>80 & range>0.075,]
+
+#aggregate by aPCA domain as many of them are duplicated in the Tsuboyama dataset (with slightly different boundaries, different genetic backgrounds etc)
+cors_to_rocklin<-cors_to_rocklin[,.(pearson_r=mean(pearson_r),
+                                    spearman_r=mean(spearman_r),
+                                    pearson_r_ff=mean(pearson_r_ff),
+                                    spearman_r_ff=mean(spearman_r_ff),
+                                    percent_overlap=mean(percent_overlap),
+                                    range=mean(range),
+                                    replicate_r_mean=mean(replicate_r_mean),
+                                    ddG_r_mean=mean(ddG_r_mean),
+                                    pdb_id=sample(V30,1)),by="dom_ID"]
+
+cors_to_rocklin[,matching_boundaries:=FALSE]
+cors_to_rocklin[percent_overlap==100,matching_boundaries:=TRUE]
+
+cors_to_rocklin<-merge(cors_to_rocklin,ranked_domains[,c("doms","cors_nostops")],
+                       by.x="dom_ID",by.y="doms")
+
+#plot only for domains with >80% overlap
+ggplot(aPCA_rocklin_merged_ddGs[dom_ID %in% cors_to_rocklin$dom_ID & mean_count>5,])+
+  geom_hex(aes(x=rocklin_ddG,y=growthrate))+
+  scale_fill_continuous(low = "gray80", high = "black")+
+  stat_cor(aes(x=rocklin_ddG,y=growthrate,label = ..r.label..),size=3.5,method="spearman")+
+  facet_wrap(~dom_ID,ncol=4)+
+  geom_smooth(aes(x=rocklin_ddG,y=growthrate),method="lm",col="red")+
+  theme_classic()
+ggsave("output_files/ED_Figure_1d_correlations_to_rocklin.pdf",height=5,width = 7)
+
+median(cors_to_rocklin$spearman_r)
+
+```
+
+```{r plot fraction of explainable variance for both}
+
+#plot variance explained distributions
+
+ivt_comparison_summary_dominfo[,fraction_explainable_variance:=cors_to_ddG_individualreps**2/cors_replicates_individualreps**2]
+cors_to_rocklin[,fraction_explainable_variance:=ddG_r_mean**2/cors_nostops**2]
+
+
+fev<-data.frame(fraction_explainable_variance=c(ivt_comparison_summary_dominfo$fraction_explainable_variance,cors_to_rocklin$fraction_explainable_variance),ref_data=c(rep("in vitro",nrow(ivt_comparison_summary_dominfo)),rep("rocklin",nrow(cors_to_rocklin))))
+
+ggplot(fev)+
+  geom_boxplot(aes(y=fraction_explainable_variance,x=ref_data))+
+  geom_jitter(aes(y=fraction_explainable_variance,x=ref_data))+
+  coord_cartesian(ylim=c(0,1))+
+  theme_classic()+
+  ylab("fraction of explainable variance")
+ggsave("output_files/Figure_1g_fraction_explainable_variance.pdf",width=3,height = 4)
+
+
+median(ivt_comparison_summary_dominfo$cors_to_ddG_spearman)
+median(cors_to_rocklin$spearman_r)
+
+
+median(ivt_comparison_summary_dominfo$fraction_explainable_variance)
+median(cors_to_rocklin$fraction_explainable_variance)
+
+
+```
+
+
+
+
+
+
+
+

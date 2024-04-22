@@ -1,0 +1,87 @@
+---
+title: "20240125_clinvar_proteinsAPI_vs_homochi_weights"
+output: html_document
+date: "2024-01-25"
+---
+
+```{r load data}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+
+base_dir=""
+setwd(base_dir)
+
+#load variant data
+variant_data_uniprot<-fread("analysis_files/clinical_variants_uniprot_proteinAPI_alignedgenes.txt")
+colnames(variant_data_uniprot)<-c("uniprot_ID","uniprot_entry","gene_name","sequence","type","pos","end","wt_aa","mut_aa","genomic_location","codon","consequence","source","str(somatic_status)","clinvar_id","exac_id","topmed_id","gnomad_id","NCITCGA_id","NCITCGA_cosmic_id","clingen_id","dbSNP_id","ensembl_id","str(sift_score)","sift_class","str(polyphen_score)","polyphen_class","clinvar_class","ensembl_class","uniprot_class","NCITCGA_class","descr")
+nrow(variant_data_uniprot)
+
+#load mappings from mochi weight positions to pfam alignment positions
+mochi_pos_to_pfam_alnpos<-fread("analysis_files/homolog_mochi_input_files/mochi_alnpos_to_pfam_alnpos.txt")
+colnames(mochi_pos_to_pfam_alnpos)<-c("mochi_pos","aln_pos","PFAM_ID")
+mochi_pos_to_pfam_alnpos<-mochi_pos_to_pfam_alnpos[!duplicated(mochi_pos_to_pfam_alnpos),]
+
+#load pfam alignments to map position in protein to position in alignment
+pfam_alignments<-fread("analysis_files/Pfam-A.human.seqpos_to_alnpos.clinvargenes.PFAM_IDs_fitted")
+colnames(pfam_alignments)<-c("PFAM_entry","pos","aln_pos","wt_aa","gene_ID","uniprot_ID","PFAM_ID",
+                             "PFAM_ID.n","uniprot_ID_pos_in_uniprot")
+#map all 3 tables together
+#mochi weight positions <--> alignment positions <--> protein positions
+clinvar_mapped_pfam_alignments<-merge(variant_data_uniprot,pfam_alignments,
+                                      by=c("uniprot_ID","pos"))
+
+clinvar_mapped_pfam_alignments_mochipos<-merge(clinvar_mapped_pfam_alignments,mochi_pos_to_pfam_alnpos,
+                                               by=c("aln_pos","PFAM_ID"))
+clinvar_mapped_pfam_alignments_mochipos[,id:=paste("-",mochi_pos,mut_aa,sep="")]
+
+mapped_variants<-clinvar_mapped_pfam_alignments_mochipos[wt_aa.x==wt_aa.y,]
+
+pathogenic_domains<-unique(mapped_variants[consequence=="missense" & (clinvar_class %in% c("Pathogenic","Likely pathogenic","Risk factor") | ensembl_class %in% c("Pathogenic","Likely pathogenic","Risk factor")),]$PFAM_entry)
+write.table(pathogenic_domains,file="analysis_files/pathogenic_domains_uniprotAPI_PFAM_entries.txt",row.names = FALSE, col.names = FALSE)
+
+
+#most mappings have matching wt aa annotations (good!)
+mapped_variants_nodups<-mapped_variants[!duplicated(genomic_location),]
+
+
+table(mapped_variants_nodups$clinvar_class)
+table(mapped_variants_nodups$ensembl_class)
+table(mapped_variants_nodups$sift_class)
+table(mapped_variants_nodups$polyphen_class)
+
+mapped_variants_nodups[clinvar_class %in% c("Pathogenic","Likely pathogenic","Risk factor"),clinvar:="Pathogenic"]
+mapped_variants_nodups[clinvar_class %in% c("Benign","Likely benign"),clinvar:="Benign"]
+mapped_variants_nodups[clinvar_class %in% c("Conflicting interpretations of pathogenicity"),clinvar:="Conflicting"]
+mapped_variants_nodups[clinvar_class %in% c("Variant of uncertain significance"),clinvar:="Uncertain"]
+mapped_variants_nodups[clinvar_class %in% c(""),clinvar:="no annotation"]
+
+mapped_variants_nodups[ensembl_class %in% c("Pathogenic","Likely pathogenic","Risk factor"),ensembl:="Pathogenic"]
+mapped_variants_nodups[ensembl_class %in% c("Benign","Likely benign"),ensembl:="Benign"]
+mapped_variants_nodups[ensembl_class %in% c("Variant of uncertain significance"),ensembl:="Uncertain"]
+mapped_variants_nodups[ensembl_class %in% c(""),ensembl:="no annotation"]
+
+table(mapped_variants_nodups$clinvar,mapped_variants_nodups$ensembl)
+
+mapped_variants_nodups[clinvar=="Pathogenic" | ensembl=="Pathogenic",clinical_class:="Pathogenic"]
+mapped_variants_nodups[clinvar=="Benign" | ensembl=="Benign",clinical_class:="Benign"]
+mapped_variants_nodups[clinvar=="Conflicting" | ensembl=="Conflicting",clinical_class:="Uncertain"]
+mapped_variants_nodups[clinvar=="Uncertain" | ensembl=="Uncertain",clinical_class:="Uncertain"]
+mapped_variants_nodups[clinvar=="no annotation" & ensembl=="no annotation",clinical_class:="no annotation"]
+
+table(mapped_variants_nodups[consequence=="missense",]$clinical_class)
+
+mapped_variants_nodups[consequence=="missense" & mut_aa=="*",]
+
+write.table(mapped_variants_nodups[consequence=="missense" & mut_aa!="*",],
+            file="analysis_files/clinical_variants_mochi_inferred_proteinAPI_labels.txt")
+
+
+```
+
+
+
+
+
