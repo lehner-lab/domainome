@@ -1,4 +1,4 @@
-Welcome to the GitHub repository for the following publication: Site-saturation mutagenesis of 500 human protein domains reveals the contribution of protein destabilization to genetic disease (Beltran A et al, 2024)
+Welcome to the GitHub repository for the following publication: Site-saturation mutagenesis of 500 human protein domains reveals the contribution of protein destabilization to genetic disease (Beltran A et al, 2024).
 
 Here you'll find source code for computational analyses and to reproduce the figures in the paper.
 
