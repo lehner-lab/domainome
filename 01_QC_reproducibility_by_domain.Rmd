@@ -383,15 +383,6 @@ mutated_domainome_final$uniprot_ID<-unlist(lapply(mutated_domainome_final$dom_ID
   return(strsplit(string,"_")[[1]][1])
 }))
 
-supp_table2<-mutated_domainome_final[,c("dom_ID","uniprot_ID","aa_seq","wt_aa","pos_in_uniprot","mut_aa","STOP","count_e1_s0","count_e2_s0","count_e3_s0","count_e1_s1","count_e2_s1","count_e3_s1","mean_count","growthrate","growthrate_sigma","scaled_gr","scaled_gr_sigma")]
-
-colnames(supp_table2)<-c("domain_ID","uniprot_ID","aa_seq","wt_aa","position","mut_aa","STOP","input_count_rep1","input_count_rep2","input_count_rep3","output_count_rep1","output_count_rep2","output_count_rep3",
-                         "mean_input_count","fitness","fitness_sigma","normalized_fitness","normalized_fitness_sigma")
-
-write.table(supp_table2,
-            file="output_files/Supplementary_Table_2_fitness_scores_normalized.txt",
-            sep="\t",row.names = FALSE)
-
 
 ```
 

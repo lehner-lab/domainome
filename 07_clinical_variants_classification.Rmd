@@ -37,6 +37,15 @@ mutated_domainome[aa_seq %in% vus,clinical_class:="Uncertain"]
 mutated_domainome[aa_seq %in% benign,clinical_class:="Benign"]
 mutated_domainome[aa_seq %in% pathogenic,clinical_class:="Pathogenic"]
 
+supp_table_2_clinical_variants<-mutated_domainome[,c("dom_ID","uniprot_ID","aa_seq","wt_aa","pos_in_uniprot","mut_aa","STOP","count_e1_s0","count_e2_s0","count_e3_s0","count_e1_s1","count_e2_s1","count_e3_s1","mean_count","growthrate","growthrate_sigma","scaled_gr","scaled_gr_sigma","clinical_class")]
+
+colnames(supp_table_2_clinical_variants)<-c("domain_ID","uniprot_ID","aa_seq","wt_aa","position","mut_aa","STOP","input_count_rep1","input_count_rep2","input_count_rep3","output_count_rep1","output_count_rep2","output_count_rep3",
+                         "mean_input_count","fitness","fitness_sigma","normalized_fitness","normalized_fitness_sigma","clinical_class")
+
+write.table(supp_table_2_clinical_variants,
+            file="../4_output_files/Supplementary_Table_2_fitness_scores_normalized.txt",
+            sep="\t",row.names = FALSE)
+
 mutated_domainome_missense<-mutated_domainome[mut_aa!="*",]
 
 table(mutated_domainome_missense[!is.na(scaled_gr),]$clinical_class)
