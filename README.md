@@ -61,10 +61,10 @@ R Markdown files are meant to be run in the following order:
 
 If you wish to regenerate all the fitness scores and inferred homolog-averaged energies from the raw sequencing data, the following software packages are required:
 
-* **[DiMSum](https://github.com/lehner-lab/DiMSum) v1.2.9** (pipeline for pre-processing deep mutational scanning data i.e. FASTQ to fitness). Download the FastQ files from Gene Expression Omnibus (GEO) with accession number GSE247740:link to your base directory (base_dir). Shell scripts to run Dimsum and configuration files can be found in the 'DiMSum' folder in [Required Data](#required-data).
+* **[DiMSum](https://github.com/lehner-lab/DiMSum) v1.2.9** (pipeline for pre-processing deep mutational scanning data i.e. FASTQ to fitness). Download the FastQ files from Gene Expression Omnibus (GEO) with accession number GSEXXXXX:link to your base directory (base_dir). Shell scripts and configuration files  to run Dimsum can be found in the Zenodo repository.
 
 The following software package is required to fit thermodynamic models to the fitness data (DiMSum output):
 
-* **[MoCHI](https://github.com/lehner-lab/MoCHI)** (pipeline to fit thermodynamic models to fitness data i.e. fitness to energies). In order to fit all 5 blocks of Src together, DiMSum fitness tables need to be modified to extend the sequence of each block to the full length Src sequence, and the sign of the kinase activity fitness assay needs to be changed due to the inverse relationship between fitness and activity in the activity assay. DiMSum output tables, the code to modify them, the modified tables ready for MoCHI fitting, and shell scripts to execute MoCHI can be found in the 'MoCHI' folder in [Required Data](#required-data). 
+* **[MoCHI](https://github.com/lehner-lab/MoCHI)** (pipeline to fit thermodynamic models to fitness data i.e. fitness to energies). Shell scripts and configuration files to use MoCHI to fit energy models to protein families can be found in the Zenodo repository. 
 
 
