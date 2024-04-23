@@ -19,7 +19,7 @@ To run the pipeline you will need the following software and associated packages
 
 # Required Data
 
-The read counts (DiMSum output), fitness scores, MoCHI weights, and required miscellaneous files should be downloaded from **[here](https://zenodo.org/records/10491695)** and copied to an 'analysis_files' folder in your project directory (named 'base_dir'). An 'output_files' directory in which results files will be written should be created in 'base_dir'.
+The read counts (DiMSum output), fitness scores, MoCHI weights, and required miscellaneous files should be downloaded from **[here](https://zenodo.org/records/11043643)** and copied to an 'analysis_files' folder in your project directory (named 'base_dir'). An 'output_files' directory in which results files will be written should be created in 'base_dir'.
 
 # Installation Instructions
 
