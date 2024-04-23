@@ -21,15 +21,15 @@ setwd(base_dir)
 mutated_domainome<-fread("analysis_files/mutated_domainome_merged.txt")
 
 #load synonymous fitness data
-A1_synvars<-fread("../0_dimsum_files/dimsum_output/A1_BGI_Q30_fitness_synonymous.txt",header=TRUE)[,library:="A1"]
-B3_synvars<-fread("../0_dimsum_files/dimsum_output/B3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="B3"]
-C1_synvars<-fread("../0_dimsum_files/dimsum_output/C1_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C1"]
-C2_synvars<-fread("../0_dimsum_files/dimsum_output/C2_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C2"]
-C3_synvars<-fread("../0_dimsum_files/dimsum_output/C3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C3"]
-C4_synvars<-fread("../0_dimsum_files/dimsum_output/C4_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C4"]
-C5_synvars<-fread("../0_dimsum_files/dimsum_output/C5_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C5"]
-C6_synvars<-fread("../0_dimsum_files/dimsum_output/C6_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C6"]
-C7_synvars<-fread("../0_dimsum_files/dimsum_output/C7_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C7"]
+A1_synvars<-fread("dimsum_output/A1_BGI_Q30_fitness_synonymous.txt",header=TRUE)[,library:="A1"]
+B3_synvars<-fread("dimsum_output/B3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="B3"]
+C1_synvars<-fread("dimsum_output/C1_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C1"]
+C2_synvars<-fread("dimsum_output/C2_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C2"]
+C3_synvars<-fread("dimsum_output/C3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C3"]
+C4_synvars<-fread("dimsum_output/C4_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C4"]
+C5_synvars<-fread("dimsum_output/C5_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C5"]
+C6_synvars<-fread("dimsum_output/C6_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C6"]
+C7_synvars<-fread("dimsum_output/C7_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C7"]
 
 synvars<-rbind(A1_synvars,B3_synvars,C1_synvars,C2_synvars,C3_synvars,C4_synvars,C5_synvars,C6_synvars,C7_synvars)
 

@@ -84,41 +84,41 @@ load_allvars<-function(allvars_path,variant_data_merge_path,aavars_path,lib_id){
   return(all_variants)
 }
 
-A1<-load_allvars("../0_dimsum_files/dimsum_output/A1_BGI_Q30_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/A1_BGI_Q30_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/A1_all_aa_variants.txt",
+A1<-load_allvars("dimsum_output/A1_BGI_Q30_fitness_replicates.RData",
+                 "dimsum_output/A1_BGI_Q30_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/A1_all_aa_variants.txt",
                  "A1")
-B3<-load_allvars("../0_dimsum_files/dimsum_output/B3_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/B3_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/B3_all_aa_variants.txt",
+B3<-load_allvars("dimsum_output/B3_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/B3_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/B3_all_aa_variants.txt",
                  "B3")
-C1<-load_allvars("../0_dimsum_files/dimsum_output/C1_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C1_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C1_resyn_all_aa_variants.txt",
+C1<-load_allvars("dimsum_output/C1_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C1_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C1_resyn_all_aa_variants.txt",
                  "C1")
-C2<-load_allvars("../0_dimsum_files/dimsum_output/C2_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C2_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C2_all_aa_variants.txt",
+C2<-load_allvars("dimsum_output/C2_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C2_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C2_all_aa_variants.txt",
                  "C2")
-C3<-load_allvars("../0_dimsum_files/dimsum_output/C3_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C3_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C3_all_aa_variants.txt",
+C3<-load_allvars("dimsum_output/C3_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C3_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C3_all_aa_variants.txt",
                  "C3")
-C4<-load_allvars("../0_dimsum_files/dimsum_output/C4_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C4_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C4_all_aa_variants.txt",
+C4<-load_allvars("dimsum_output/C4_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C4_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C4_all_aa_variants.txt",
                  "C4")
-C5<-load_allvars("../0_dimsum_files/dimsum_output/C5_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C5_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C5_all_aa_variants.txt",
+C5<-load_allvars("dimsum_output/C5_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C5_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C5_all_aa_variants.txt",
                  "C5")
-C6<-load_allvars("../0_dimsum_files/dimsum_output/C6_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C6_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C6_all_aa_variants.txt",
+C6<-load_allvars("dimsum_output/C6_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C6_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C6_all_aa_variants.txt",
                  "C6")
-C7<-load_allvars("../0_dimsum_files/dimsum_output/C7_BGI_Q20_fitness_replicates.RData",
-                 "../0_dimsum_files/dimsum_output/C7_BGI_Q20_variant_data_merge.RData",
-                 "../0_dimsum_files/dimsum_scripts_and_inputfiles/C7_all_aa_variants.txt",
+C7<-load_allvars("dimsum_output/C7_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_output/C7_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_scripts_and_inputfiles/C7_all_aa_variants.txt",
                  "C7")
 
 mutated_domainome<-rbind(A1,B3,C1,C2,C3,C4,C5,C6,C7)
@@ -186,10 +186,6 @@ write.table(mutated_domainome,file="analysis_files/mutated_domainome_merged.txt"
             quote = FALSE,
             sep = "\t")
 
-write.table(mutated_domainome[,c(1:15,24:40)],file="../6_GEOsubmission/aPCA_variant_growthrates.txt",
-            row.names = FALSE,
-            quote = FALSE,
-            sep = "\t")
 
 nrow(mutated_domainome)
 length(unique(mutated_domainome$aa_seq))
