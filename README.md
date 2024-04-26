@@ -13,7 +13,7 @@ Here you'll find source code for computational analyses and to reproduce the fig
 
 To run the pipeline you will need the following software and associated packages:
 
-* **[_R_](https://www.r-project.org/)** (GGally, bigsnpr, bio3d, data.table, dplyr, drc, factoextra, ggplot2, ggpubr, ggrepel, gplots, minpack.lm, mltools, msir, OneR, PRROC, scales, stringr, viridis)
+* **[_R_](https://www.r-project.org/)** (GGally, bigsnpr, bio3d, data.table, dplyr, drc, factoextra, ggplot2, ggpubr, ggrepel, gplots, minpack.lm, mltools, OneR, PRROC, scales, stringr, viridis)
 
 
 
