@@ -30,6 +30,9 @@ Make sure you have git and conda installed and then run (expected install time <
 conda install -c conda-forge r-ggally r-bigsnpr r-bio3d r-data.table r-dplyr r-drc r-factoextra r-ggplot2 r-ggpubr r-ggrepel r-gplots r-minpack.lm r-mltools r-msir r-oner r-prroc r-scales r-stringr r-viridis
 ```
 
+The R session info including package and dependency versions can be found in session_info.txt.
+
+
 # Usage
 
 The R Markdown files contain the code to reproduce the figures and results from the computational analyses described in the following publication: Site-saturation mutagenesis of 500 human protein domains reveals the contribution of protein destabilization to genetic disease (Beltran A et al, 2024). See [Required Data](#required-data) for instructions on how to obtain all required data and miscellaneous files before running the analysis.
