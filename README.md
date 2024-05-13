@@ -35,7 +35,7 @@ The R session info including package and dependency versions can be found in R_s
 
 # Usage
 
-The R Markdown files contain the code to reproduce the figures and results from the computational analyses described in the following publication: Site-saturation mutagenesis of 500 human protein domains reveals the contribution of protein destabilization to genetic disease (Beltran A et al, 2024). See [Required Data](#required-data) for instructions on how to obtain all required data and miscellaneous files before running the analysis.
+The R Markdown files contain the code to reproduce the figures and results from the computational analyses described in the following publication: Site-saturation mutagenesis of 500 human protein domains reveals the contribution of protein destabilization to genetic disease (Beltran A et al, 2024). See [Required Data](#required-data) for instructions on how to obtain all required data and miscellaneous files before running the analysis (total run time < 2h).
 
 R Markdown files are meant to be run in the following order:
 
