@@ -30,7 +30,7 @@ Make sure you have git and conda installed and then run (expected install time <
 conda install -c conda-forge r-ggally r-bigsnpr r-bio3d r-data.table r-dplyr r-drc r-factoextra r-ggplot2 r-ggpubr r-ggrepel r-gplots r-minpack.lm r-mltools r-msir r-oner r-prroc r-scales r-stringr r-viridis
 ```
 
-The R session info including package and dependency versions can be found in session_info.txt.
+The R session info including package and dependency versions can be found in R_session_info.txt.
 
 
 # Usage
