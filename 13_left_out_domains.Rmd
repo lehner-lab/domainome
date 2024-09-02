@@ -5,7 +5,7 @@ date: "2024-03-12"
 ---
 
 
-```{r cars}
+```{r load data}
 
 library(data.table)
 library(ggplot2)
@@ -14,10 +14,10 @@ library(ggpubr)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
-mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs.txt")
+mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")
 
 PFAM_ID_leftoutdomains<-c("PF00018","PF00030","PF00046","PF00096","PF00105","PF00157","PF00249","PF00397","PF00505","PF00595","PF00628","PF00641","PF01846","PF02037")
 
@@ -185,7 +185,7 @@ ggplot(performance_summary_mochi_vs_mpnn)+
   geom_violin(aes(x=PFAM_ID,y=pearson_r_obs_vs_predicted,fill=method),position = position_dodge(0.9),scale="width")+
   geom_boxplot(aes(x=PFAM_ID,y=pearson_r_obs_vs_predicted,fill=method),position = position_dodge(0.9),outlier.shape = NA,width=0.15)+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-ggsave("output_files/Figure_6j_mochi_vs_thermompnn_leftoutdomains.pdf")
+ggsave("output_files/Figure6j_mochi_vs_thermompnn_leftoutdomains.pdf")
 
 
 ```
@@ -199,7 +199,7 @@ ggplot(performance_summary,aes(y=spearman_r_obs_vs_predicted,x=mean_hd))+
   geom_smooth(method="lm")+
   stat_cor(label.y.npc="bottom", label.x.npc = "left",size=3)+
   facet_wrap(~PFAM_ID,scales = "free_x",ncol=5)
-ggsave("output_files/ED_Figure_7c_performance_leftoutdomains_vs_hammingd.pdf")
+ggsave("output_files/ED_Figure7c_performance_leftoutdomains_vs_hammingd.pdf")
 
 ```
 ```{r plot performance homeodomains}
@@ -209,7 +209,7 @@ ggplot(performance_summary[PFAM_ID=="PF00046",],aes(y=pearson_r_obs_vs_predicted
   geom_point()+
   geom_smooth(method="lm")+
   stat_cor(label.y.npc="bottom", label.x.npc = "left")
-ggsave("output_files/Figure_6g_performance_homeodomains_leftoutdomains_vs_hd.pdf")
+ggsave("output_files/Figure6g_performance_homeodomains_leftoutdomains_vs_hd.pdf")
 
 performance_summary[doms=="FKEKSRSVLREWYAHNPYPSPREKRELAEATGLTTTQVSNWFKNRRQRDR",homeodomain_label:='SIX2']
 performance_summary[doms=="RHRTTFTSLQLEELEKVFQKTHYPDVYVREQLALRTELTEARVQVWFQNRRAKWRK",homeodomain_label:='ALX']

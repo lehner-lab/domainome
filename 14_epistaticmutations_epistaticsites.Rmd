@@ -17,7 +17,7 @@ library(OneR)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 pfamids<-fread("analysis_files/homolog_mochi_input_files/PFAM_IDs",header=FALSE)$V1  
@@ -211,19 +211,19 @@ ggplot()+
   geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595" & pos_in_alignment==29,],aes(x=predicted,y=fitness.x, col=sig))+
   ylab("observed fitness")+
   xlab("predicted fitness")
-ggsave("output_files/ED_Figure_8a_site_enriched_in_epistaticmutations.pdf")
+ggsave("output_files/ED_Figure8a_site_enriched_in_epistaticmutations.pdf")
 
 ggplot()+
   geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595",],aes(x=predicted,y=fitness.x),alpha=0.1)+
   geom_point(data=predicted_vs_observed_merged_noWT_structuralinfo[PFAM_ID=="PF00595" & pos_in_alignment==82,],aes(x=predicted,y=fitness.x,col=sig))+
   ylab("observed fitness")+
   xlab("predicted fitness")
-ggsave("output_files/ED_Figure_8b_site_depleted_in_epistaticmutations.pdf")
+ggsave("output_files/ED_Figure8b_site_depleted_in_epistaticmutations.pdf")
 
 
 ggplot(summary_by_position)+
   geom_boxplot(aes(x=core,y=log2(fet_OR),fill=core))
-ggsave("output_files/ED_Figure_8c_enrichment_vs_coresurface.pdf")
+ggsave("output_files/ED_Figure8c_enrichment_vs_coresurface.pdf")
 
 table(summary_by_position$core)
 
@@ -235,7 +235,7 @@ ggplot(summary_by_position)+
   theme(axis.title.x=element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank())
-ggsave("output_files/ED_Figure_8e_enrichment_vs_coresurface_byfamily.pdf")
+ggsave("output_files/ED_Figure8e_enrichment_vs_coresurface_byfamily.pdf")
 
 
 #is this true across the range of fitness?
@@ -252,7 +252,7 @@ running_median_core<-c()
 running_median_surface<-c()
 running_median_changing<-c()
 
-windowsize=0.02
+windowsize=0.05
 fitness_steps=seq(min(summary_by_position$fitness_avg),max(summary_by_position$fitness_avg),0.005)
 for (fitness in fitness_steps){
   
@@ -267,7 +267,7 @@ ggplot()+
   geom_line(aes(y=running_median_core,x=fitness_steps),col="darkgreen")+
   geom_line(aes(y=running_median_surface,x=fitness_steps),col="blue")+
   geom_line(aes(y=running_median_changing,x=fitness_steps),col="red")
-ggsave("output_files/ED_Figure_8d_enrichment_in_epistaticmuts_core_surface_runningmedian.pdf")
+ggsave("output_files/ED_Figure8d_enrichment_in_epistaticmuts_core_surface_runningmedian.pdf")
 
 
 predicted_vs_observed_merged_noWT_structuralinfo[,total_contact_count:=vdw_intra+sb_intra+hbbb_intra+hbsb_intra+hbss_intra+hp_intra+pc_intra+ps_inter+ts_intra+wb_intra]
@@ -277,7 +277,7 @@ predicted_vs_observed_merged_noWT_structuralinfo[,dom_ID_pos:=paste(dom_ID,pos,s
 
 ggplot(predicted_vs_observed_merged_noWT_structuralinfo[!duplicated(dom_ID_pos),])+
   geom_boxplot(aes(x=core,y=total_contact_count))
-ggsave("output_files/ED_figure_8f_core_vs_surface_getcontacts.pdf")
+ggsave("output_files/ED_Figure8f_core_vs_surface_getcontacts.pdf")
 
 table(predicted_vs_observed_merged_noWT_structuralinfo$core)
 

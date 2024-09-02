@@ -13,7 +13,7 @@ library(viridis)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="path/to/your/files"
 setwd(base_dir)
 
 my_fn_WT <- function(data, mapping, ...){
@@ -31,7 +31,7 @@ load_allvars<-function(allvars_path,variant_data_merge_path,aavars_path,lib_id){
   
   suppressWarnings(print(ggpairs(all_variants[,c("growthrate1","growthrate2","growthrate3")], lower=list(continuous=my_fn_WT))+
           ggtitle(lib_id)))
-  ggsave(paste("output_files/ED_Figure_1b_",lib_id,".pdf",sep=""))
+  ggsave(paste("../ED_Figure1b_",lib_id,".pdf",sep=""))
   
   #add zero output variants
   load(variant_data_merge_path)
@@ -84,51 +84,64 @@ load_allvars<-function(allvars_path,variant_data_merge_path,aavars_path,lib_id){
   return(all_variants)
 }
 
-A1<-load_allvars("dimsum_output/A1_BGI_Q30_fitness_replicates.RData",
-                 "dimsum_output/A1_BGI_Q30_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/A1_all_aa_variants.txt",
+A1<-load_allvars("dimsum_files/dimsum_output/A1_BGI_Q30_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/A1_BGI_Q30_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/A1_all_aa_variants.txt",
                  "A1")
-B3<-load_allvars("dimsum_output/B3_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/B3_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/B3_all_aa_variants.txt",
+B3<-load_allvars("dimsum_files/dimsum_output/B3_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/B3_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/B3_all_aa_variants.txt",
                  "B3")
-C1<-load_allvars("dimsum_output/C1_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C1_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C1_resyn_all_aa_variants.txt",
+C1<-load_allvars("dimsum_files/dimsum_output/C1_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C1_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C1_resyn_all_aa_variants.txt",
                  "C1")
-C2<-load_allvars("dimsum_output/C2_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C2_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C2_all_aa_variants.txt",
+C2<-load_allvars("dimsum_files/dimsum_output/C2_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C2_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C2_all_aa_variants.txt",
                  "C2")
-C3<-load_allvars("dimsum_output/C3_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C3_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C3_all_aa_variants.txt",
+C3<-load_allvars("dimsum_files/dimsum_output/C3_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C3_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C3_all_aa_variants.txt",
                  "C3")
-C4<-load_allvars("dimsum_output/C4_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C4_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C4_all_aa_variants.txt",
+C4<-load_allvars("dimsum_files/dimsum_output/C4_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C4_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C4_all_aa_variants.txt",
                  "C4")
-C5<-load_allvars("dimsum_output/C5_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C5_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C5_all_aa_variants.txt",
+C5<-load_allvars("dimsum_files/dimsum_output/C5_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C5_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C5_all_aa_variants.txt",
                  "C5")
-C6<-load_allvars("dimsum_output/C6_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C6_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C6_all_aa_variants.txt",
+C6<-load_allvars("dimsum_files/dimsum_output/C6_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C6_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C6_all_aa_variants.txt",
                  "C6")
-C7<-load_allvars("dimsum_output/C7_BGI_Q20_fitness_replicates.RData",
-                 "dimsum_output/C7_BGI_Q20_variant_data_merge.RData",
-                 "dimsum_scripts_and_inputfiles/C7_all_aa_variants.txt",
+C7<-load_allvars("dimsum_files/dimsum_output/C7_BGI_Q20_fitness_replicates.RData",
+                 "dimsum_files/dimsum_output/C7_BGI_Q20_variant_data_merge.RData",
+                 "dimsum_files/dimsum_scripts_and_inputfiles/C7_all_aa_variants.txt",
                  "C7")
 
 mutated_domainome<-rbind(A1,B3,C1,C2,C3,C4,C5,C6,C7)
+
+#load synonymous fitness data
+A1_synvars<-fread("dimsum_files/dimsum_output/A1_BGI_Q30_fitness_synonymous.txt",header=TRUE)[,library:="A1"]
+B3_synvars<-fread("dimsum_files/dimsum_output/B3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="B3"]
+C1_synvars<-fread("dimsum_files/dimsum_output/C1_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C1"]
+C2_synvars<-fread("dimsum_files/dimsum_output/C2_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C2"]
+C3_synvars<-fread("dimsum_files/dimsum_output/C3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C3"]
+C4_synvars<-fread("dimsum_files/dimsum_output/C4_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C4"]
+C5_synvars<-fread("dimsum_files/dimsum_output/C5_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C5"]
+C6_synvars<-fread("dimsum_files/dimsum_output/C6_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C6"]
+C7_synvars<-fread("dimsum_files/dimsum_output/C7_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C7"]
+
+synvars<-rbind(A1_synvars,B3_synvars,C1_synvars,C2_synvars,C3_synvars,C4_synvars,C5_synvars,C6_synvars,C7_synvars)
 
 
 #plot fitness correlations
 ggplot(mutated_domainome)+
   geom_histogram(aes(x=log10(mean_count+1)))+
   facet_wrap(~library)
-ggsave("output_files/ED_Figure_S1a.pdf")
+ggsave("output_files/ED_Figure1a.pdf")
 
 mutated_domainome<-mutated_domainome[!duplicated(mutated_domainome[,c("aa_seq","variant_ID","library")]),]
 mutated_domainome<-mutated_domainome[!is.na(dom_ID)]
@@ -158,13 +171,12 @@ for (lib in unique(mutated_domainome$library)){
   mutated_domainome[library==lib,growthrate2:=growthrate2-dead_peaks[libs==lib,]$dead_modes]
   mutated_domainome[library==lib,growthrate3:=growthrate3-dead_peaks[libs==lib,]$dead_modes]
 
+  synvars[library==lib,growthrate:=growthrate-dead_peaks[libs==lib,]$dead_modes]
+  synvars[library==lib,growthrate1:=growthrate1-dead_peaks[libs==lib,]$dead_modes]
+  synvars[library==lib,growthrate2:=growthrate2-dead_peaks[libs==lib,]$dead_modes]
+  synvars[library==lib,growthrate3:=growthrate3-dead_peaks[libs==lib,]$dead_modes]
+
 }
-
-ggplot(mutated_domainome)+
-  geom_density(aes(x=growthrate,col=STOP))+
-  facet_wrap(~library)
-ggsave("output_files/Figure_S1b.pdf")
-
 
 #dead if input counts>9 in any of the inputs and 0 in all outputs
 mutated_domainome[mean_count==0,missing:=TRUE]
@@ -182,6 +194,11 @@ mutated_domainome$WT.x<-NULL
 colnames(mutated_domainome)[which(colnames(mutated_domainome)=="WT.y")]<-"WT"
 
 write.table(mutated_domainome,file="analysis_files/mutated_domainome_merged.txt",
+            row.names = FALSE,
+            quote = FALSE,
+            sep = "\t")
+
+write.table(synvars,file="analysis_files/synonymous_variants_merged.txt",
             row.names = FALSE,
             quote = FALSE,
             sep = "\t")

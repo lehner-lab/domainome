@@ -11,7 +11,7 @@ library(ggplot2)
 library(data.table)
 library(bio3d)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 #load fitness changes

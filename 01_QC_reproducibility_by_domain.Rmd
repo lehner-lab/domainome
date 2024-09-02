@@ -15,23 +15,13 @@ library(viridis)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="path/to/your/files"
 setwd(base_dir)
 
 mutated_domainome<-fread("analysis_files/mutated_domainome_merged.txt")
 
 #load synonymous fitness data
-A1_synvars<-fread("dimsum_output/A1_BGI_Q30_fitness_synonymous.txt",header=TRUE)[,library:="A1"]
-B3_synvars<-fread("dimsum_output/B3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="B3"]
-C1_synvars<-fread("dimsum_output/C1_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C1"]
-C2_synvars<-fread("dimsum_output/C2_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C2"]
-C3_synvars<-fread("dimsum_output/C3_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C3"]
-C4_synvars<-fread("dimsum_output/C4_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C4"]
-C5_synvars<-fread("dimsum_output/C5_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C5"]
-C6_synvars<-fread("dimsum_output/C6_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C6"]
-C7_synvars<-fread("dimsum_output/C7_BGI_Q20_fitness_synonymous.txt",header=TRUE)[,library:="C7"]
-
-synvars<-rbind(A1_synvars,B3_synvars,C1_synvars,C2_synvars,C3_synvars,C4_synvars,C5_synvars,C6_synvars,C7_synvars)
+synvars<-fread("analysis_files/synonymous_variants_merged.txt")
 
 #merge with structural annotations
 
@@ -53,6 +43,7 @@ structural_anno[WT==TRUE,pos_in_uniprot:=NA]
 
 mutated_domainome_struct<-merge(mutated_domainome,structural_anno,
                          by=c("aa_seq","dom_ID","variant_ID","pos","pos_in_uniprot","WT","wt_seq","wt_aa","mut_aa"))
+
 
 ```
 
@@ -78,6 +69,7 @@ doms<-rep(NA,length(doms_lib))
 library<-rep(NA,length(doms_lib))
 cors_withstops<-rep(NA,length(doms_lib))
 cors_nostops<-rep(NA,length(doms_lib))
+cors_nostops_ct30<-rep(NA,length(doms_lib))
 cors_pc1<-rep(NA,length(doms_lib))
 nvars<-rep(NA,length(doms_lib))
 wt_gr<-rep(NA,length(doms_lib))
@@ -142,8 +134,16 @@ for (i in seq(length(doms))){
   cor_nostops<-mean(c(cor(subset$growthrate1,subset$growthrate2,use = "pairwise.complete.obs"),
                 cor(subset$growthrate1,subset$growthrate3,use = "pairwise.complete.obs"),
                 cor(subset$growthrate2,subset$growthrate3,use = "pairwise.complete.obs")))
-  cors_nostops[i]<-cor_nostops
+  cor_nostops_ct30<-mean(c(cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate1,
+                          subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate2,use = "pairwise.complete.obs"),
+                      cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate1,
+                          subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate3,use = "pairwise.complete.obs"),
+                      cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate2,
+                          subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate3,use = "pairwise.complete.obs")))
   
+  cors_nostops[i]<-cor_nostops
+  cors_nostops_ct30[i]<-cor_nostops_ct30
+
   cors_pc1[i]<-cor(subset$growthrate,subset$PC1,use="pairwise.complete.obs")
   
   wt_gr[i]<-as.numeric(subset[WT==TRUE,"growthrate"])
@@ -182,6 +182,7 @@ summary<-data.table(doms_lib,
                     doms,
                     library,
                     cors_nostops,
+                    cors_nostops_ct30,
                     cors_pc1,
                     nvars,
                     wt_gr,
@@ -236,7 +237,6 @@ res.pca$rotation
 projections<-data.table(res.pca$x)
 projections$doms_lib<-summary[!toremove,]$doms_lib
 projections$dom_ID<-summary[!toremove,]$doms
-projections$tonis_class<-summary[!toremove,]$tonis_class
 projections$organism<-summary[!toremove,]$Organism
 projections$nvars<-summary[!toremove,]$nvars
 projections$library<-summary[!toremove,]$library
@@ -268,7 +268,10 @@ sum(filtered_domains$nvars)
 length(unique(filtered_domains[Organism=="Homo sapiens (Human)",]$uniprot_ID))
 length(unique(filtered_domains$uniprot_ID))
 
-median(filtered_domains$cors_nostops)
+
+#plot metrics for retained and discarded domains
+summary_rank[dom_ID %in% filtered_domains$doms,retained:="yes"]
+summary_rank[!(dom_ID %in% filtered_domains$doms),retained:="no"]
 
 #write
 write.table(filtered_domains,file="analysis_files/domain_QC_summary_reproducibility_ranked.txt",quote=FALSE,sep="\t",row.names = FALSE)
@@ -316,7 +319,7 @@ ggplot(mutated_domainome_final[STOP==FALSE,])+
   geom_density(aes(x=scaled_gr,col=core))+
   theme_classic()+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/Figure_1d_core_vs_surface_scaledfitness.pdf")
+ggsave("output_files/Figure1d_core_vs_surface_scaledfitness.pdf")
   
 mutated_domainome_final[mut_aa %in% strsplit("AFILMVWY","")[[1]],mut_class:="hydrophobic"]
 mutated_domainome_final[mut_aa %in% strsplit("DEKNQRST","")[[1]],mut_class:="polar"]
@@ -327,17 +330,14 @@ ggplot(mutated_domainome_final[STOP==FALSE & !(is.na(mut_class)),])+
   theme_classic()+
   coord_cartesian(xlim=c(-1.5,0.5))+
   facet_wrap(~core)
-ggsave("output_files/ED_Figure_1e_core_vs_surface_scaledfitness_mutclass.pdf",width = 6,height = 3)
+ggsave("output_files/ED_Figure1f_core_vs_surface_scaledfitness_mutclass.pdf",width = 6,height = 3)
  
 
 ggplot(mutated_domainome_final[STOP==FALSE & WT==FALSE,])+
   geom_density(aes(x=scaled_gr,col=proline))+
   theme_classic()+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/Figure_1d_proline_vs_others_scaledfitness.pdf")
-
-length(unique(filtered_domains$PFAM_ID))
-median(filtered_domains$cors_nostops)
+ggsave("output_files/Figure1d_proline_vs_others_scaledfitness.pdf")
 
 #merge synonymous variants, normalized fitness and plot
 synvars_wtgr<-merge(synvars,mutated_domainome_struct_wts,
@@ -353,11 +353,10 @@ synvars_wtgr[,scaled_gr_sigma:=(growthrate_sigma)/(wt_gr-dead_gr)]
 
 ggplot(mutated_domainome_final)+
   geom_density(aes(x=scaled_gr,col=STOP))+
-  geom_density(data=synvars_wtgr[aa_seq %in% mutated_domainome_final$aa_seq,],aes(x=scaled_gr),bw=0.05,col="purple")+
+  geom_density(data=synvars_wtgr[aa_seq %in% mutated_domainome_final$aa_seq & (count_e1_s0>30 | count_e2_s0>30 | count_e3_s0>30) ,],aes(x=scaled_gr),bw=0.05,col="purple")+
   theme_classic()+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/Figure_1d_stops_synonymous_missense_scaledfitness.pdf")
-
+ggsave("output_files/Figure1d_stops_synonymous_missense_scaledfitness.pdf")
 
 
 replicate_correlations <- function(data, mapping, ...){
@@ -369,7 +368,7 @@ replicate_correlations <- function(data, mapping, ...){
 
 ggpairs(mutated_domainome_final[,c("growthrate1","growthrate2","growthrate3")], lower=list(continuous=replicate_correlations))+
   theme_classic()
-ggsave("output_files/Figure_1c_replicate_correlations_included.pdf")
+ggsave("../4_output_files/Figure1c_replicate_correlations_included.pdf")
 
 write.table(mutated_domainome_final,file="analysis_files/mutated_domainome_merged_filtered.txt",
             sep="\t",row.names = FALSE)
@@ -430,7 +429,7 @@ for (pfamid in counts_per_family[N>=10,]$V1){
   
   print(ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% domainstoplot & STOP==FALSE,],aes(x=pos_in_uniprot,y=mut_aa))+
   geom_tile(aes(fill=scaled_gr))+
-  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0)+
+  scale_fill_gradient2(low="red",mid="white",high="blue",midpoint=0, limits=c(-1.5,0.75))+
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=5))
   ggsave(paste("output_files/data_for_all_domains/top5_",pfamid,"_fitnessheatmap.pdf",sep=""),height=2,width=10)
@@ -461,23 +460,23 @@ mutated_domainome_final_scop[secondary_structure=="AlphaHelix",secondary_structu
 ggplot(mutated_domainome_final_scop[!is.na(scop_class) & STOP==FALSE,])+
   geom_density(aes(x=scaled_gr,col=secondary_structure))+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/extendedData_fig_1f_secstruct_allmissense.pdf")
+ggsave("output_files/ED_Figure1f_secstruct_allmissense.pdf")
 
 ggplot(mutated_domainome_final_scop[STOP==FALSE & mut_aa=="P",])+
   geom_density(aes(x=scaled_gr,col=secondary_structure))+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/extendedData_fig_1f_secstruct_proline.pdf")
+ggsave("output_files/ED_Figure_1f_secstruct_proline.pdf")
 
 
 ```
 
 
 ```{r all domains, fig.width=15,fig.height=50}
-#plot all retained domains by rank in 5 separate plots - for ED figure
 
+#plot all retained domains by rank in 5 separate plots - for ED figure
 mutated_domainome_final_capped_toplot$dom_ID_lib<-factor(mutated_domainome_final_capped_toplot$dom_ID_lib,
                                                          levels=filtered_domains$doms_lib)
-filtered_domains<-filtered_domains[order(PFAM_ID,rank_final),]
+filtered_domains<-filtered_domains[order(PFAM_ID,rank),]
 filtered_domains$rank_final<-1:nrow(filtered_domains)
 
 mutated_domainome_final_capped_toplot[mut_aa!="*",STOP:=FALSE]
@@ -526,6 +525,263 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   theme(text = element_text(size = 5))
 ggsave(paste("output_files/ED_Figure_2_all_domains_rank417-522.pdf",sep=""),height=11.7,width=8.3)
 
+
+
+```
+
+
+
+```{r add structurally discarded domains from A1 and B3 to QC plots}
+
+mutated_domainome_A1_B3_discarded_struct<-fread("3_analysis_files/mutated_domainome_A1-B3_discarded_merged.txt")
+
+#run QC analysis for A1 and B3 discarded domains
+
+mutated_domainome_A1_B3_discarded_struct[,dom_ID_library:=paste(dom_ID,library,sep="_")]
+mutated_domainome_A1_B3_discarded_struct$PFAM_ID<-unlist(lapply(mutated_domainome_A1_B3_discarded_struct$dom_ID,FUN=function(string){
+  return(strsplit(string,"_")[[1]][2])
+}))
+mutated_domainome_A1_B3_discarded_struct<-mutated_domainome_A1_B3_discarded_struct[order(dom_ID),]
+mutated_domainome_A1_B3_discarded_struct<-mutated_domainome_A1_B3_discarded_struct[order(PFAM_ID),]
+
+
+discarded_doms_lib<-unique(mutated_domainome_A1_B3_discarded_struct$dom_ID_library)
+discarded_doms<-rep(NA,length(discarded_doms_lib))
+discarded_library<-rep(NA,length(discarded_doms_lib))
+discarded_cors_withstops<-rep(NA,length(discarded_doms_lib))
+discarded_cors_nostops<-rep(NA,length(discarded_doms_lib))
+discarded_cors_nostops_ct30<-rep(NA,length(discarded_doms_lib))
+discarded_cors_pc1<-rep(NA,length(discarded_doms_lib))
+discarded_nvars<-rep(NA,length(discarded_doms_lib))
+discarded_wt_gr<-rep(NA,length(discarded_doms_lib))
+discarded_wt_gr_sigma<-rep(NA,length(discarded_doms_lib))
+discarded_wt_gr_percentile<-rep(NA,length(discarded_doms_lib))
+discarded_gr_range<-rep(NA,length(discarded_doms_lib))
+discarded_gr_range_perc90<-rep(NA,length(discarded_doms_lib))
+discarded_median_stops<-rep(NA,length(discarded_doms_lib))
+discarded_domlength<-rep(NA,length(discarded_doms_lib))
+discarded_corsasa<-rep(NA,length(discarded_doms_lib))
+discarded_median_surface_gr<-rep(NA,length(discarded_doms_lib))
+discarded_median_core_gr<-rep(NA,length(discarded_doms_lib))
+discarded_median_core_gr_polarmuts<-rep(NA,length(discarded_doms_lib))
+discarded_wt_gr_diff_to_perc95<-rep(NA,length(discarded_doms_lib))
+
+
+#counts threshold
+thr<-0
+
+for (i in seq(length(discarded_doms))){
+  
+  subset<-mutated_domainome_A1_B3_discarded_struct[dom_ID_library==discarded_doms_lib[i],]
+  
+  discarded_doms[i]<-unique(subset$dom_ID)
+  discarded_nvars[i]<-nrow(subset)
+  discarded_domlength[i]<-unique(nchar(subset$aa_seq))
+  discarded_library[i]<-unique(subset$library)
+  
+  
+  if (nrow(subset[WT==TRUE,])>0){
+  
+  subset<-subset[order(subset$WT),]
+  subset<-subset[count_e1_s0>thr | count_e2_s0>thr | count_e3_s0>thr,]
+
+  if (nrow(subset)>9){
+  
+  subset[STOP==TRUE,class:="STOP"]
+  subset[STOP==FALSE,class:="missense"]
+  subset[WT==TRUE,class:="WT"]
+  
+  discarded_median_stops[i]<-median(subset[class=="STOP"]$growthrate)
+
+  cor_withstops<-mean(c(cor(subset$growthrate1,subset$growthrate2,use = "pairwise.complete.obs"),
+                cor(subset$growthrate1,subset$growthrate3,use = "pairwise.complete.obs"),
+                cor(subset$growthrate2,subset$growthrate3,use = "pairwise.complete.obs")))
+  discarded_cors_withstops[i]<-cor_withstops
+  
+  subset<-subset[STOP==FALSE,]
+  cor_nostops<-mean(c(cor(subset$growthrate1,subset$growthrate2,use = "pairwise.complete.obs"),
+                cor(subset$growthrate1,subset$growthrate3,use = "pairwise.complete.obs"),
+                cor(subset$growthrate2,subset$growthrate3,use = "pairwise.complete.obs")))
+  discarded_cors_nostops[i]<-cor_nostops
+  
+  cor_nostops_ct30<-mean(c(cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate1,
+                               subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate2,use = "pairwise.complete.obs"),
+                           cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate1,
+                               subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate3,use = "pairwise.complete.obs"),
+                           cor(subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate2,
+                               subset[count_e1_s0>29 | count_e2_s0>29 | count_e3_s0>29,]$growthrate3,use = "pairwise.complete.obs")))
+  discarded_cors_nostops_ct30[i]<-cor_nostops_ct30
+  
+  discarded_cors_pc1[i]<-cor(subset$growthrate,subset$PC1,use="pairwise.complete.obs")
+  
+  discarded_wt_gr[i]<-as.numeric(subset[WT==TRUE,"growthrate"])
+  discarded_wt_gr_sigma[i]<-as.numeric(subset[WT==TRUE,"growthrate_sigma"])
+  
+  if (!is.na(discarded_wt_gr[i])){
+  discarded_wt_gr_percentile[i]<-which(subset$growthrate[order(subset$growthrate,decreasing = TRUE)]==discarded_wt_gr[i])/length(subset$growthrate)
+  }
+  
+  discarded_gr_range_perc90[i]<-diff(quantile(subset$growthrate, probs = c(.05, .95),na.rm=TRUE))
+  discarded_gr_range[i]<-max(subset$growthrate,na.rm = TRUE)-min(subset$growthrate,na.rm = TRUE)
+
+  discarded_wt_gr_diff_to_perc95[i]<-discarded_wt_gr[i]-quantile(subset$growthrate, probs = c(.95),na.rm=TRUE)
+
+  
+  subset[rsasa_all<25,loc:="core"]
+  subset[rsasa_all>25,loc:="surface"]
+
+  discarded_corsasa[i]<-cor(subset$growthrate,subset$rsasa_all,use="pairwise.complete.obs",method="spearman")
+  discarded_median_surface_gr[i]<-median(subset[loc=="surface",]$growthrate,na.rm = TRUE)
+  discarded_median_core_gr[i]<-median(subset[loc=="core",]$growthrate,na.rm = TRUE)
+  polar<-c("C","D","E","G","H","K","N","P","Q","R","S","T")
+  discarded_median_core_gr_polarmuts[i]<-median(subset[loc=="core" & mut_aa %in% polar,]$growthrate,na.rm=TRUE)
+
+}}}
+
+
+summary_discarded=data.table(doms_lib=discarded_doms_lib,
+doms=discarded_doms,
+library=discarded_library,
+cors_withstops=discarded_cors_withstops,
+cors_nostops=discarded_cors_nostops,
+cors_nostops_ct30=discarded_cors_nostops_ct30,
+cors_pc1=discarded_cors_pc1,
+nvars=discarded_nvars,
+wt_gr=discarded_wt_gr,
+wt_gr_sigma=discarded_wt_gr_sigma,
+wt_gr_percentile=discarded_wt_gr_percentile,
+gr_range=discarded_gr_range,
+gr_range_perc90=discarded_gr_range_perc90,
+median_stops=discarded_median_stops,
+domlength=discarded_domlength,
+corsasa=discarded_corsasa,
+median_surface_gr=discarded_median_surface_gr,
+median_core_gr=discarded_median_core_gr,
+median_core_gr_polarmuts=discarded_median_core_gr_polarmuts,
+wt_gr_diff_to_perc95=discarded_wt_gr_diff_to_perc95
+)
+
+summary_discarded[,wt_position:=wt_gr_diff_to_perc95/gr_range_perc90]
+
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=cors_nostops_ct30,col=retained))+
+  geom_density(data=summary_discarded,aes(x=cors_nostops_ct30,col="no core/disordered"))
+ggsave("output_files/ED_Figure_1c_cors.pdf")
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=wt_position,col=retained))+
+  geom_density(data=summary_discarded,aes(x=wt_position,col="no core/disordered"))
+ggsave("output_files/ED_Figure_1c_wt_pos.pdf")
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=corsasa,col=retained))+
+  geom_density(data=summary_discarded,aes(x=corsasa,col="no core/disordered"))
+ggsave("output_files/ED_Figure_1c_sasa.pdf")
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=cors_pc1,col=retained))+
+  geom_density(data=summary_discarded,aes(x=cors_pc1,col="no core/disordered"))
+ggsave("output_files/ED_Figure1c_pc1.pdf")
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=gr_range_perc90,col=retained))+
+  geom_density(data=summary_discarded,aes(x=gr_range_perc90,col="no core/disordered"))
+ggsave("output_files/ED_Figure1c_grrange90.pdf")
+
+ggplot(summary_rank)+
+  geom_density(data=summary_rank,aes(x=wt_gr,col=retained))+
+  geom_density(data=summary_discarded,aes(x=wt_gr,col="no core/disordered"))
+ggsave("output_files/ED_Figure1c_wtgr.pdf")
+
+#reasons for discarding
+nrow(summary_discarded)
+nrow(summary_rank[retained=="no",])
+
+tooslow<-summary_rank[retained=="no" & wt_gr<0.075,]$dom_ID
+wtnotfit<-summary_rank[retained=="no" & wt_position<(-0.4),]$dom_ID
+hydrophobicity<-summary_rank[retained=="no" & cors_pc1>(0.25),]$doms_lib
+sasa<-summary_rank[retained=="no" & corsasa<0,]$doms_lib
+
+length(tooslow)/nrow(summary_rank[retained=="no",])
+length(wtnotfit)/nrow(summary_rank[retained=="no",])
+length(hydrophobicity)/nrow(summary_rank[retained=="no",])
+length(sasa)/nrow(summary_rank[retained=="no",])
+
+length(unique(c(tooslow,wtnotfit,hydrophobicity,sasa)))/nrow(summary_rank[retained=="no",])
+
+
+#features of discarded domains
+
+#length
+ggplot(summary_rank)+
+  geom_boxplot(aes(x=retained,y=domlength))
+median(summary_rank[retained=="yes",]$domlength)
+median(summary_rank[retained=="no",]$domlength)
+
+wilcox.test(summary_rank[retained=="yes",]$domlength,
+            summary_rank[retained=="no",]$domlength)
+
+#orthology to yeast genes
+yeast_human_orthos<-fread("analysis_files/human_yeast_orthologs_inparanoid.fa")
+
+summary_rank[!(uniprot_ID %in% yeast_human_orthos$V5),ortholog:="non-ortholog"]
+summary_rank[uniprot_ID %in% yeast_human_orthos$V5,ortholog:="ortholog"]
+
+fisher.test(table(summary_rank$retained,
+      summary_rank$ortholog))
+
+
+
+#scop classes
+scop_classes_discarded<-fread("analysis_files/PFAM_ID_scop_class_discarded.tsv")
+scop_classes_all<-rbind(scop_classes,scop_classes_discarded,fill=TRUE)
+
+summary_rank<-merge(summary_rank,
+                    scop_classes_all,
+                    by="PFAM_ID",
+                    all.x=TRUE)
+
+table(summary_rank$scop_class,summary_rank$retained)
+table(summary_rank$scop_class,summary_rank$retained)[,1]/rowSums(table(summary_rank$scop_class,summary_rank$retained))
+
+fisher.test(cbind(c(204,149),
+                  c(31+150+88,48+195+128)))
+
+#ppi
+confident_ppimodels_beltrao<-fread("analysis_files/beltraolab_2024_interactionmodels_af2.txt")
+ppi_genes_heterodimers<-unique(confident_ppimodels_beltrao[uniprot_id1!=uniprot_id2,]$uniprot_id1,
+                  confident_ppimodels_beltrao[uniprot_id1!=uniprot_id2,]$uniprot_id2)
+ppi_genes_homodimers<-unique(confident_ppimodels_beltrao[uniprot_id1==uniprot_id2,]$uniprot_id1)
+
+summary_rank[,dimer:="none"]
+summary_rank[uniprot_ID %in% ppi_genes_heterodimers,dimer:="hetero"]
+summary_rank[uniprot_ID %in% ppi_genes_homodimers,dimer:="homo"]
+
+table(summary_rank$dimer,summary_rank$retained)
+table(summary_rank$dimer,summary_rank$retained)[,1]/rowSums(table(summary_rank$dimer,summary_rank$retained))
+
+fisher.test(cbind(c(191,185),
+                  c(260+33,303+35)))
+
+#hydrophobicity
+wt_sequences<-mutated_domainome[,c("dom_ID","wt_seq")]; wt_sequences<-wt_sequences[!duplicated(wt_sequences),]
+
+hydrophobic_counts <- function(x) {sum(unlist(strsplit(x, "")) %in% strsplit("AFILMVWY","")[[1]])}
+wt_sequences[,n_hydrophobic:=sapply(wt_seq, hydrophobic_counts)]
+wt_sequences[,n_total:=nchar(wt_seq)]
+wt_sequences[,frac_hydrophobic:=n_hydrophobic/n_total]
+
+summary_rank<-merge(summary_rank,wt_sequences,by.x="doms",by.y="dom_ID",all.x = TRUE)
+
+ggplot(summary_rank)+
+  geom_boxplot(aes(x=retained,y=n_hydrophobic))
+
+ggplot(summary_rank)+
+  geom_boxplot(aes(x=retained,y=frac_hydrophobic))
+
+median(summary_rank[retained=="yes",]$frac_hydrophobic)
+median(summary_rank[retained=="no",]$frac_hydrophobic)
 
 
 ```

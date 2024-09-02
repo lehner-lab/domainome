@@ -12,7 +12,7 @@ library(data.table)
 library(stringr)
 library(viridis)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 #load mappings from mochi weight positions to pfam alignment positions
@@ -105,7 +105,7 @@ all_counts$PFAM_ID<-factor(all_counts$PFAM_ID,
 
 ggplot(all_counts)+
   geom_col(aes(y=PFAM_ID,x=`variant count`,fill=source))
-ggsave("output_files/ED_Figure_9_totalexpansioncount_variants.pdf")
+ggsave("output_files/ED_Figure9a_totalexpansioncount_variants.pdf")
 
 #expansion for domains
 expanded_counts_domains<-data.table(table(pfam_alignments_homochipredictions[!duplicated(PFAM_entry),]$PFAM_ID.x))
@@ -125,13 +125,13 @@ all_counts_domains$PFAM_ID<-factor(all_counts_domains$PFAM_ID,
 
 ggplot(all_counts_domains)+
   geom_col(aes(y=PFAM_ID,x=`domain count`,fill=source))
-ggsave("output_files/ED_Figure_9_totalexpansioncount_domains.pdf")
+ggsave("output_files/ED_Figure9b_totalexpansioncount_domains.pdf")
 
 
 #write table of predictions in homologs
 supp_table_4<-pfam_alignments_homochipredictions[,c("PFAM_entry","uniprot_ID","gene_ID","pos","wt_aa","mut_aa","mean_kcalmol_scaled","std_kcalmol_scaled")]
 write.table(supp_table_4,
-            file="output_files/Supplementary_Table_4_homolog_predictions.txt",
+            file="output_files/ED_Table_4_homolog_predictions.txt",
             quote=FALSE,
             sep = "\t",
             row.names=FALSE)

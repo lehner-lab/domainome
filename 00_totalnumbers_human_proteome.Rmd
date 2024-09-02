@@ -1,0 +1,33 @@
+---
+title: "QC_metrics_nocore_domains"
+output: html_document
+date: "2024-07-10"
+---
+
+```{r read data}
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(viridis)
+
+theme_set(theme_classic())
+
+base_dir="path/to/your/files"
+setwd(base_dir)
+
+interpro_human<-fread("analysis_files/protein2ipr.human.dat")
+human_swissprot<-fread("analysis_files/human_uniprotIDs_swissprot.tsv")
+
+
+pfam_human<-interpro_human[grep("^PF",V4),]
+pfam_human_swissprot<-pfam_human[V1 %in% human_swissprot$Entry,]
+
+length(unique(pfam_human_swissprot$V4))
+
+#43,323 total PFAM domains in swissprot human proteome
+#6,223 unique PFAM entries in swissprot human proteome
+
+
+```
+

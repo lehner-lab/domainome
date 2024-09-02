@@ -14,7 +14,7 @@ library(viridis)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 clinvar_directmerge<-fread("analysis_files/clinical_variants_mochi_inferred_clinvar_labels.txt")
@@ -133,7 +133,7 @@ ggplot(merged_counts)+
   geom_col(aes(y=PFAM_ID,fill=measured,x=N))+
   theme_classic()+
   xlab("number of pathogenic variants")
-ggsave("output_files/Figure6_variant_count_expansion.pdf")
+ggsave("output_files/Figure7a_variant_count_expansion.pdf")
 
 
 
@@ -142,7 +142,6 @@ ggsave("output_files/Figure6_variant_count_expansion.pdf")
 ggplot(clinical_variants_mochiweights[!is.na(class),])+
   geom_density(aes(x=mean_kcalmol_scaled,col=class),bw=0.075)+
   coord_cartesian(xlim=c(-1,1.5))
-ggsave("output_files/Figure6_mochi_clinicalvariants_density.pdf")
 
 
 table(clinical_variants_mochiweights[class %in% c("Benign","Pathogenic"),]$class,
@@ -171,7 +170,7 @@ destab_class_proportions$V2<-factor(destab_class_proportions$V2,
 ggplot(destab_class_proportions)+
   geom_col(aes(x=V1,fill=V2,y=N))+
   theme_classic()
-ggsave("output_files/Figure6_mochi_destab_variant_clinical_proportions.pdf")
+ggsave("output_files/Figure7c_mochi_destab_variant_clinical_proportions.pdf")
 
 
 #keep only domains with pathogenic variants
@@ -190,7 +189,7 @@ clinical_variants_mochiweights_pathogenic_genes<-clinical_variants_mochiweights[
 
 gnomad_variants<-fread("analysis_files/gnomad_v4_variants_in_mapped_domains_mochi.txt")
 
-gnomad_variants_mochiweights<-merge(gnomad_variants,homochi_weights_merged,by=c("id","PFAM_ID"),all=TRUE)
+gnomad_variants_mochiweights<-merge(gnomad_variants,homochi_weights,by=c("id","PFAM_ID"),all=TRUE)
 
 
 gnomad_variants_mochiweights$af<-unlist(apply(gnomad_variants_mochiweights[,c("V12","V17")], MARGIN = 1, FUN = function(row){
@@ -210,15 +209,108 @@ gnomad_variants_mochiweights_pathogenic_genes<-gnomad_variants_mochiweights[PFAM
 clinical_variants_mochiweights$af<-rep(NA,nrow(clinical_variants_mochiweights))
 clinical_variants_mochiweights_pathogenic_genes$af<-rep(NA,nrow(clinical_variants_mochiweights_pathogenic_genes))
 
+gnomad_variants_mochiweights_pathogenic_genes[,class:="gnomad"]
+
 ggplot(clinical_variants_mochiweights[!is.na(class),])+
   geom_density(data=gnomad_variants_mochiweights_pathogenic_genes[af>1e-5,],
                aes(x=mean_kcalmol_scaled),col="black",bw=0.075)+
   geom_density(aes(x=mean_kcalmol_scaled,col=class),bw=0.075)+
   coord_cartesian(xlim=c(-1,1.5))+
   theme_classic()
-ggsave("output_files/Figure6_mochi_clinicalvariants_gnomad_density.pdf")
-
-
+ggsave("output_files/Figure7b_mochi_clinicalvariants_gnomad_density.pdf")
 
 ```
+
+```{r classifier}
+
+clinical_variants_to_evaluate<-clinical_variants_mochiweights[!is.na(class),]
+clinical_variants_to_evaluate[,uniprot_ID:=tstrsplit(variant_ID_uniprot,"_")[1]]
+clinical_variants_to_evaluate[,mutation:=tstrsplit(variant_ID_uniprot,"_")[3]]
+
+#merge mochi predictions on clinical variants to FoldX and esm1v
+
+#foldx
+foldx<-fread("analysis_files/foldx_predictions_mochipreds_extended.txt")
+foldx[,mutation:=paste(V2,V3,V4,sep="")]
+colnames(foldx)[1:5]<-c("uniprot_ID","wt_aa","pos","mut_aa","FoldX_ddG")
+
+uniprotid_to_geneid<-fread("analysis_files/geneid_to_uniprotID_human.txt",header=FALSE)
+colnames(uniprotid_to_geneid)<-c("uniprot_ID","geneid")
+foldx_geneid<-merge(foldx,uniprotid_to_geneid,by.x="uniprot_ID",by.y = "uniprot_ID",all.x=TRUE,allow.cartesian=TRUE)
+
+#esm1v FL
+esm1vFL<-fread("analysis_files/esm1v_predictions_mochipreds.txt")
+
+clinical_variants_to_evaluate_foldx<-merge(clinical_variants_to_evaluate,
+                                           foldx_geneid,
+                                           by.x=c("geneid","mutation"),
+                                           by.y=c("geneid","mutation"),
+                                           all.x=TRUE)
+
+clinical_variants_to_evaluate_foldx_esm1v<-merge(clinical_variants_to_evaluate_foldx,
+                                           esm1vFL[,c("geneid.y","mutation","mean_esm1v_prediction_fl")],
+                                           by.x=c("geneid","mutation"),
+                                           by.y=c("geneid.y","mutation"),
+                                           all.x=TRUE)
+
+table(clinical_variants_to_evaluate_foldx_esm1v[!is.na(FoldX_ddG),]$class)
+table(clinical_variants_to_evaluate_foldx_esm1v[!is.na(mean_esm1v_prediction_fl),]$class)
+table(clinical_variants_to_evaluate_foldx_esm1v[!is.na(FoldX_ddG) & !is.na(mean_esm1v_prediction_fl),]$class)
+
+clinical_variants_to_evaluate_foldx_esm1v[class=="Benign",clinical_class_roc:=0]
+clinical_variants_to_evaluate_foldx_esm1v[class=="Pathogenic",clinical_class_roc:=1]
+
+#merge mochi predictions on gnomad variants to FoldX and esm1v
+
+gnomad_variants_mochiweights_pathogenic_genes[,mutation:=paste(wt_aa_1letter,pos.x,mut_aa_1letter,sep="")]
+gnomad_variants_to_evaluate_foldx<-merge(gnomad_variants_mochiweights_pathogenic_genes,
+                                           foldx_geneid,
+                                           by.x=c("geneid","mutation"),
+                                           by.y=c("geneid","mutation"),
+                                           all.x=TRUE)
+
+gnomad_variants_to_evaluate_foldx_esm1v<-merge(gnomad_variants_to_evaluate_foldx,
+                                           esm1vFL[,c("geneid.y","mutation","mean_esm1v_prediction_fl")],
+                                           by.x=c("geneid","mutation"),
+                                           by.y=c("geneid.y","mutation"),
+                                           all.x=TRUE)
+
+table(gnomad_variants_to_evaluate_foldx_esm1v$af_bin)
+gnomad_variants_to_evaluate_foldx_esm1v[af>1e-5,clinical_class_roc:=0]
+
+#build table of clinical + gnomad
+clinical_and_gnomad<-rbind(clinical_variants_to_evaluate_foldx_esm1v[,c("uniprot_ID.x","mutation","PFAM_ID","geneid","mean_kcalmol_scaled","std_kcalmol_scaled","af","class","clinical_class_roc","mean_esm1v_prediction_fl","FoldX_ddG")],
+      gnomad_variants_to_evaluate_foldx_esm1v[,c("uniprot_ID.x","mutation","PFAM_ID","geneid","mean_kcalmol_scaled","std_kcalmol_scaled","af","clinical_class_roc","mean_esm1v_prediction_fl","FoldX_ddG")],
+      fill=TRUE)
+
+
+#classifier
+
+library(pROC)
+library(PRROC)
+library(mltools)
+
+clinical_variants_toclassify<-data.table(clinical_and_gnomad)
+clinical_variants_toclassify<-clinical_variants_toclassify[!is.na(clinical_class_roc),]
+clinical_variants_toclassify_matched<-clinical_variants_toclassify[!is.na(FoldX_ddG) & !is.na(mean_esm1v_prediction_fl),]
+
+table(clinical_variants_toclassify_matched$clinical_class_roc)
+
+pdf("output_files/ED_Figure9c_patho_vs_benign_roccurves_predictorcomparisons_mochipreds.pdf")
+plot(roc(clinical_variants_toclassify$clinical_class_roc,
+         clinical_variants_toclassify$mean_esm1v_prediction_fl),col="orange",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.475)
+plot(roc(clinical_variants_toclassify$clinical_class_roc,
+         clinical_variants_toclassify$FoldX_ddG),add=TRUE,col="blue",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4)
+plot(roc(clinical_variants_toclassify$clinical_class_roc,
+         clinical_variants_toclassify$mean_kcalmol_scaled),add=TRUE,print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.325)
+# Add legend
+legend("topright",
+legend=c("esm1v","FoldX","energy models"),
+col=c("orange","blue","black"),
+lwd=1, cex =0.5, xpd = TRUE, horiz = FALSE)
+dev.off()
+
+```
+
+
 

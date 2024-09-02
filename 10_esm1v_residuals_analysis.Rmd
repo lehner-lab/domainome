@@ -14,7 +14,7 @@ library(OneR)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 #load ranked domains and aPCA+esm1v residuals data
@@ -63,7 +63,9 @@ ggplot(esm1v_residuals_all_mutations)+
   geom_density(aes(x=esm1v_residuals_sigfit_grsq,col=funsite))+
   coord_cartesian(xlim=c(-1,2))+
   theme_classic()
-ggsave("output_files/Figure_5d_functional_sites_residuals.pdf")
+ggsave("output_files/Figure4d_functional_sites_residuals.pdf")
+
+table(esm1v_residuals_all_mutations$funsite)
 
 #plot these for classes of funsites
 
@@ -78,7 +80,7 @@ ggplot(esm1v_residuals_all_mutations_merged[cdd_description %in% site_types_with
   geom_vline(aes(xintercept=0),col="red")+
   facet_wrap(~cdd_description,scales = "free_y")+
   xlab("residuals aPCA to esm1v")
-ggsave("output_files/ED_Figure_5b_residuals_by_cdd_description.pdf")
+ggsave("output_files/ED_Figure4b_residuals_by_cdd_description.pdf")
 
 
 #merge tables, will contain duplicated sites that have more than 1 functional annotation
@@ -88,6 +90,9 @@ esm1v_residuals_all_mutations_merged[is.na(cdd_description),cdd_description:="no
 by_site_anno_stats<-esm1v_residuals_all_mutations_merged[,.(median_res=median(esm1v_residuals_sigfit_grsq),
                                                             median_z=median(esm1v_residuals_sigfit_grsq/sigma)),
                                                          by="cdd_description"]
+
+
+
 
 ```
 
@@ -135,7 +140,7 @@ esm1v_residuals_all_mutations_merged_bypos<-esm1v_residuals_all_mutations_merged
 ggplot(esm1v_residuals_all_mutations_merged_bypos)+
   geom_density(aes(x=merged_esm1v_residual,col=funsite))+
   theme_classic()
-#ggsave("output_files/Figure_5e_functional_sites_residuals_wmean.pdf")
+ggsave("output_files/Figure4e_functional_sites_residuals_wmean.pdf")
 
 
 #overall enrichments
@@ -190,14 +195,14 @@ cont_table_bysite_dt_fdr0.1$cdd_description<-factor(cont_table_bysite_dt_fdr0.1$
 ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
   geom_col(aes(y=cdd_description,x=log2(OR)))+
   theme_classic()
-ggsave("output_files/Figure_5f_oddsratios_by_cdd_description.pdf")
+ggsave("output_files/Figure4f_oddsratios_by_cdd_description.pdf")
 
 
 ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
   geom_point(aes(y=cdd_description,x=log2(OR)),size=3,col="blue")+
   geom_errorbar(aes(y=cdd_description,x=log2(OR),xmin=log2(confint_lower),xmax=log2(confint_upper)))+
   theme_classic()
-ggsave("output_files/Figure_5f_oddsratios_by_cdd_description_errorbars.pdf")
+ggsave("output_files/Figure4f_oddsratios_by_cdd_description_errorbars.pdf")
 
 
 #aggregate by cdd_ID_description
@@ -234,15 +239,79 @@ cont_table_bysite_dt_fdr0.1<-merge(cont_table_bysite_dt_fdr0.1,pfam_labels_merge
 cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),]
 
 
-#write suppl table 4
-supp_table_4<-esm1v_residuals_all_mutations_merged_bypos[,c("dom_ID","PFAM_ID","wt_seq","pos_in_uniprot","wt_aa","cdd_ID_description","cdd_description","merged_esm1v_residual")]
-colnames(supp_table_4)<-c("dom_ID","PFAM_ID","wt_seq","position","wt_aa","CDD_ID_description","CDD_description","residual")
+#write ED table 3
+supp_table_3<-esm1v_residuals_all_mutations_merged_bypos[,c("dom_ID","PFAM_ID","wt_seq","pos_in_uniprot","wt_aa","cdd_ID_description","cdd_description","merged_esm1v_residual")]
+colnames(supp_table_3)<-c("dom_ID","PFAM_ID","wt_seq","position","wt_aa","CDD_ID_description","CDD_description","residual")
 
-write.table(supp_table_4,
-            file="output_files/Supplementary_Table_3_esm1v_residuals.txt",
+write.table(supp_table_3,
+            file="output_files/ED_Table_3_esm1v_residuals.txt",
             quote=FALSE,
             sep="\t",
             row.names=FALSE)
+
+
+#second shell residues
+mindistance_table<-fread("analysis_files/minimum_residuedistances_pairwise.txt")
+mindistance_table[,uniprot_ID:=tstrsplit(dom_ID,"_")[1]]
+mindistance_table[,Pos1_site:=paste(uniprot_ID,Pos1,sep="_")]
+mindistance_table[,Pos2_site:=paste(uniprot_ID,Pos2,sep="_")]
+
+esm1v_residuals_all_mutations_merged_bypos[cdd_description %in% c("Zinc-binding sites","zinc cluster 1","zinc cluster 2","Zn binding site"),funsite:="Zn binding site"]
+funsites<-esm1v_residuals_all_mutations_merged_bypos[funsite=="yes",]$uniprot_ID_pos_in_uniprot
+
+secondshell_HA<-mindistance_table[!(Pos1_site %in% funsites) & Pos2_site %in% funsites & HA<5,]$Pos1_site
+secondshell_scHA<-mindistance_table[!(Pos1_site %in% funsites) & Pos2_site %in% funsites & scHA<5,]$Pos1_site
+secondshell_scHA_ca<-mindistance_table[!(Pos1_site %in% funsites) & Pos2_site %in% funsites & scHA_ca<5,]$Pos1_site
+
+esm1v_residuals_all_mutations_merged_bypos[uniprot_ID_pos_in_uniprot %in% secondshell_HA,sshell_HA:="yes"]
+esm1v_residuals_all_mutations_merged_bypos[uniprot_ID_pos_in_uniprot %in% secondshell_scHA,sshell_scHA:="yes"]
+esm1v_residuals_all_mutations_merged_bypos[uniprot_ID_pos_in_uniprot %in% secondshell_scHA_ca,sshell_scHA_ca:="yes"]
+
+#subset domains with at least 1 functional site
+doms_funsites<-unique(esm1v_residuals_all_mutations_merged_bypos[funsite=='yes',]$dom_ID)
+esm1v_residuals_all_mutations_merged_bypos_doms_funsites<-esm1v_residuals_all_mutations_merged_bypos[dom_ID %in% doms_funsites,]
+
+ggplot()+
+  geom_density(data=esm1v_residuals_all_mutations_merged_bypos_doms_funsites[funsite=="yes",],
+               aes(x=merged_esm1v_residual,col="funsite"))+
+  geom_density(data=esm1v_residuals_all_mutations_merged_bypos_doms_funsites[funsite=="no" & is.na(sshell_scHA),],
+               aes(x=merged_esm1v_residual,col="non-funsite"))+
+  geom_density(data=esm1v_residuals_all_mutations_merged_bypos_doms_funsites[sshell_scHA=="yes",],
+               aes(x=merged_esm1v_residual,col="second shell"))
+ggsave("output_files/ED_Figure4c_functional_sites_residuals_secondshell.pdf")
+
+
+#per residue minimum distance to an annotated functional site
+mindistances_to_funsites_perresidue<-mindistance_table[Pos2_site %in% funsites,.(mindistance_HA=min(HA),
+                                                                                 mindistance_scHA=min(scHA),
+                                                                                 mindistance_scHA_CA=min(scHA_ca)),by="Pos1_site"]
+mindistances_to_funsites_perresidue[Pos1_site %in% funsites,mindistance_HA:=0]
+mindistances_to_funsites_perresidue[Pos1_site %in% funsites,mindistance_scHA:=0]
+mindistances_to_funsites_perresidue[Pos1_site %in% funsites,mindistance_scHA_CA:=0]
+
+mindistances_to_funsites_perresidue<-merge(mindistances_to_funsites_perresidue,
+                                esm1v_residuals_all_mutations_merged_bypos_doms_funsites[,c("dom_ID","uniprot_ID_pos_in_uniprot","merged_esm1v_residual")],
+                                           by.x="Pos1_site",by.y = "uniprot_ID_pos_in_uniprot")
+mindistances_to_funsites_perresidue<-mindistances_to_funsites_perresidue[dom_ID %in% doms_funsites,]
+
+                                         
+ggplot(mindistances_to_funsites_perresidue)+
+  geom_hex(aes(x=mindistance_scHA,
+                 y=merged_esm1v_residual),bins=70)+
+  scale_fill_viridis()
+
+
+mindistances_to_funsites_perresidue[merged_esm1v_residual>0.3,highres:=TRUE]
+mindistances_to_funsites_perresidue[merged_esm1v_residual<0.3,highres:=FALSE]
+
+ggplot(mindistances_to_funsites_perresidue[mindistance_scHA>0,])+
+  geom_boxplot(aes(y=mindistance_scHA,x=highres))
+
+median(mindistances_to_funsites_perresidue[highres==TRUE,]$mindistance_scHA)
+median(mindistances_to_funsites_perresidue[highres==FALSE,]$mindistance_scHA)
+
+wilcox.test(mindistances_to_funsites_perresidue[highres==TRUE,]$mindistance_scHA,
+            mindistances_to_funsites_perresidue[highres==FALSE,]$mindistance_scHA)
 
 ```
 

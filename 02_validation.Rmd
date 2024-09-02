@@ -14,8 +14,9 @@ library(GGally)
 library(viridis)
 library(ggpubr)
 
+theme_set(theme_classic())
 
-base_dir=""
+base_dir="path/to/your/files"
 setwd(base_dir)
 
 mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
@@ -139,7 +140,7 @@ ggplot(mutated_domainome_invitro_ddGs[dom_ID %in% ivt_comparison_summary_dominfo
   facet_wrap(~dom_ID)+
   geom_smooth(aes(x=ddG,y=growthrate),method="lm",col="red")+
   theme_classic()
-ggsave("output_files/ED_Figure_1c_correlations_to_invitro.pdf",height=5,width=6)
+ggsave("output_files/ED_Figure1d_correlations_to_invitro.pdf",height=5,width=6)
 
 
 median(ivt_comparison_summary_dominfo$cors_to_ddG_spearman)
@@ -236,7 +237,7 @@ ggplot(aPCA_rocklin_merged_ddGs[dom_ID %in% cors_to_rocklin$dom_ID & mean_count>
   facet_wrap(~dom_ID,ncol=4)+
   geom_smooth(aes(x=rocklin_ddG,y=growthrate),method="lm",col="red")+
   theme_classic()
-ggsave("output_files/ED_Figure_1d_correlations_to_rocklin.pdf",height=5,width = 7)
+ggsave("output_files/ED_Figure1e_correlations_to_rocklin.pdf",height=5,width = 7)
 
 median(cors_to_rocklin$spearman_r)
 
@@ -246,27 +247,39 @@ median(cors_to_rocklin$spearman_r)
 
 #plot variance explained distributions
 
-ivt_comparison_summary_dominfo[,fraction_explainable_variance:=cors_to_ddG_individualreps**2/cors_replicates_individualreps**2]
-cors_to_rocklin[,fraction_explainable_variance:=ddG_r_mean**2/cors_nostops**2]
+ivt_comparison_summary_dominfo[,disattenuated_r:=(cors_to_ddG_individualreps/sqrt(cors_replicates_individualreps))]
+cors_to_rocklin[,disattenuated_r:=ddG_r_mean/sqrt(cors_nostops)]
 
 
-fev<-data.frame(fraction_explainable_variance=c(ivt_comparison_summary_dominfo$fraction_explainable_variance,cors_to_rocklin$fraction_explainable_variance),ref_data=c(rep("in vitro",nrow(ivt_comparison_summary_dominfo)),rep("rocklin",nrow(cors_to_rocklin))))
+fev<-data.frame(disattenuated_r=c(ivt_comparison_summary_dominfo$disattenuated_r,cors_to_rocklin$disattenuated_r),
+                pearsons_r=c(ivt_comparison_summary_dominfo$cors_to_ddG,cors_to_rocklin$pearson_r),
+                spearmans_rho=c(ivt_comparison_summary_dominfo$cors_to_ddG_spearman,cors_to_rocklin$spearman_r),
+                ref_data=c(rep("in vitro",nrow(ivt_comparison_summary_dominfo)),rep("rocklin",nrow(cors_to_rocklin))))
 
 ggplot(fev)+
-  geom_boxplot(aes(y=fraction_explainable_variance,x=ref_data))+
-  geom_jitter(aes(y=fraction_explainable_variance,x=ref_data))+
+  geom_boxplot(aes(y=pearsons_r,x=ref_data),outlier.shape = NA)+
+  geom_jitter(aes(y=pearsons_r,x=ref_data),height = 0)+
   coord_cartesian(ylim=c(0,1))+
   theme_classic()+
-  ylab("fraction of explainable variance")
-ggsave("output_files/Figure_1g_fraction_explainable_variance.pdf",width=3,height = 4)
+  ylab("Pearson's r")
+ggsave("output_files/Figure1h_pearsons_r.pdf",width=3,height = 4)
+
+ggplot(fev)+
+  geom_boxplot(aes(y=spearmans_rho,x=ref_data),outlier.shape=NA)+
+  geom_jitter(aes(y=spearmans_rho,x=ref_data),height = 0)+
+  coord_cartesian(ylim=c(0,1))+
+  theme_classic()+
+  ylab("Spearman's rho")
+ggsave("output_files/Figure1h_spearmans_rho.pdf",width=3,height = 4)
 
 
-median(ivt_comparison_summary_dominfo$cors_to_ddG_spearman)
-median(cors_to_rocklin$spearman_r)
+
+median(ivt_comparison_summary_dominfo$cors_to_ddG)
+median(cors_to_rocklin$pearson_r)
 
 
-median(ivt_comparison_summary_dominfo$fraction_explainable_variance)
-median(cors_to_rocklin$fraction_explainable_variance)
+median(ivt_comparison_summary_dominfo$disattenuated_r)
+median(cors_to_rocklin$disattenuated_r)
 
 
 ```

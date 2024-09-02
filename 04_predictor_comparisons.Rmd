@@ -13,10 +13,10 @@ library(GGally)
 library(viridis)
 library(ggpubr)
 
-base_dir=""
+base_dir="/path/to/your/files/"
 setwd(base_dir)
 
-mutated_domainome_preds<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_AM_popEVE_new.txt")
+mutated_domainome_preds<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")
 
 #compute correlations by domain
 
@@ -26,12 +26,14 @@ VEP_correlations<-mutated_domainome_preds[!is.na(growthrate) & mut_aa!="*",.(
   rsasa_r=cor(growthrate,rsasa_all,method = "pearson",use = "pairwise.complete.obs"),
   rsasa_r_spearman=cor(growthrate,rsasa_all,method = "spearman",use = "pairwise.complete.obs"),
   esm1v_r=cor(mean_esm1v_prediction,growthrate,method = "pearson",use = "pairwise.complete.obs"),
-  esm1v_r_spearman=cor(mean_esm1v_prediction_fl,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  esm1v_r_spearman=cor(mean_esm1v_prediction,growthrate,method = "spearman",use = "pairwise.complete.obs"),
   esm1v_fl_r=cor(mean_esm1v_prediction_fl,growthrate,method = "pearson",use = "pairwise.complete.obs"),
-  esm1v_fl_r_spearman=cor(mean_esm1v_prediction,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  esm1v_fl_r_spearman=cor(mean_esm1v_prediction_fl,growthrate,method = "spearman",use = "pairwise.complete.obs"),
   range_esm=diff(quantile(mean_esm1v_prediction_fl,probs=c(0.025,0.975),na.rm=TRUE)),
   eve_r=cor(-EVE_new,growthrate,method = "pearson",use = "pairwise.complete.obs"),
   eve_r_spearman=cor(-EVE_new,growthrate,method = "spearman",use = "pairwise.complete.obs"),
+  eve_domain_r=cor(-EVE_score_domain,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  eve_domain_r_spearman=cor(-EVE_score_domain,growthrate,method = "spearman",use = "pairwise.complete.obs"),  
   tranception_r=cor(Tranception_new,growthrate,method = "pearson",use = "pairwise.complete.obs"),
   tranception_r_spearman=cor(Tranception_new,growthrate,method = "spearman",use = "pairwise.complete.obs"),
   popeve_r=cor(popEVE_new,growthrate,method = "pearson",use = "pairwise.complete.obs"),
@@ -44,12 +46,11 @@ VEP_correlations<-mutated_domainome_preds[!is.na(growthrate) & mut_aa!="*",.(
   thermoMPNN_ddG_r_spearman=cor(-thermoMPNN_ddG,growthrate,method = "spearman",use = "pairwise.complete.obs"),
   AlphaMissense_r=cor(-AlphaMissense_fitness,growthrate,method = "pearson",use = "pairwise.complete.obs"),
   AlphaMissense_r_spearman=cor(-AlphaMissense_fitness,growthrate,method = "spearman",use = "pairwise.complete.obs"),
-  esm1v_r_averaged=mean(c(cor(growthrate1,mean_esm1v_prediction_fl,method = "pearson",use = "pairwise.complete.obs"),cor(growthrate2,mean_esm1v_prediction_fl,method = "pearson",use =  "pairwise.complete.obs"),cor(growthrate3,mean_esm1v_prediction_fl,method = "pearson",use = "pairwise.complete.obs"))),
-  esm1v_r_spearman_averaged=mean(c(cor(growthrate1,mean_esm1v_prediction_fl,method = "spearman",use = "pairwise.complete.obs"),cor(growthrate2,mean_esm1v_prediction_fl,method = "spearman",use =  "pairwise.complete.obs"),cor(growthrate3,mean_esm1v_prediction_fl,method = "spearman",use = "pairwise.complete.obs"))),
-  
+  foldx_r=cor(-foldx_ddg,growthrate,method = "pearson",use = "pairwise.complete.obs"),
+  foldx_r_spearman=cor(-foldx_ddg,growthrate,method = "spearman",use = "pairwise.complete.obs"),
   N=length(growthrate),
-  EVE_noNA=length(which(!is.na(EVE))),
-  popEVE_noNA=length(which(!is.na(popEVE)))),
+  EVE_noNA=length(which(!is.na(EVE_new))),
+  popEVE_noNA=length(which(!is.na(popEVE_new)))),
   by=dom_ID]
 
 VEP_correlations[,popEVE_completeness:=popEVE_noNA/N]
@@ -62,11 +63,11 @@ nrow(VEP_correlations[popEVE_completeness>0.5,])
 #spearman's rho
 
 #all
-VEP_correlations_spearman.mlt<-melt(VEP_correlations[popEVE_completeness>0.5,c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman")],id.var="dom_ID")
+VEP_correlations_spearman.mlt<-data.table(melt(VEP_correlations[,c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman","foldx_r_spearman","eve_domain_r_spearman")],id.var="dom_ID"))
 
-VEP_correlations_spearman.mlt[variable %in% c("esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","tranception_r_spearman","eve_r_spearman","AlphaMissense_r_spearman"),
+VEP_correlations_spearman.mlt[variable %in% c("esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","tranception_r_spearman","eve_r_spearman","eve_domain_r_spearman","AlphaMissense_r_spearman"),
                               type:="fitness"]
-VEP_correlations_spearman.mlt[variable %in% c("ddmut_ddG_r_spearman","rasp_r_spearman","thermoMPNN_ddG_r_spearman"),
+VEP_correlations_spearman.mlt[variable %in% c("ddmut_ddG_r_spearman","rasp_r_spearman","thermoMPNN_ddG_r_spearman","foldx_r_spearman"),
                               type:="stability"]
 VEP_correlations_spearman.mlt[variable %in% c("rsasa_r_spearman"),
                               type:="sasa"]
@@ -75,11 +76,11 @@ VEP_correlations_spearman.mlt$type<-factor(VEP_correlations_spearman.mlt$type,
                                            levels=c("fitness","stability","sasa"))
 
 VEP_correlations_spearman.mlt$variable<-factor(VEP_correlations_spearman.mlt$variable,
-                                               levels=c("esm1v_fl_r_spearman","popeve_r_spearman","esm1v_r_spearman","AlphaMissense_r_spearman","tranception_r_spearman","eve_r_spearman",
-                                                        "thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
+                                               levels=c("eve_domain_r_spearman","esm1v_r_spearman","popeve_r_spearman","esm1v_fl_r_spearman","tranception_r_spearman","AlphaMissense_r_spearman","eve_r_spearman",
+                                                        "thermoMPNN_ddG_r_spearman","foldx_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
                                                          "rsasa_r_spearman"))
 
-levels(VEP_correlations_spearman.mlt$variable)<-c("ESM1v\nfull-length","popEVE","ESM1v\ndomain","AlphaMissense","Tranception","EVE","thermoMPNN","ddmut","RaSP","rsasa")
+levels(VEP_correlations_spearman.mlt$variable)<-c("EVE domain","ESM1v\ndomain","popEVE","ESM1v\nfull-length","Tranception","AlphaMissense","EVE","thermoMPNN","FoldX","ddmut","RaSP","rsasa")
 
 #remove outlier (domain with 2 data points for Tranception)
 VEP_correlations_spearman.mlt[variable=="Tranception" & value>0.99,value:=NA]
@@ -93,8 +94,9 @@ ggplot(VEP_correlations_spearman.mlt)+
   scale_fill_manual(values=c("#ED1C24","#294599","#FBB040"))+
   scale_color_manual(values=c("#ED1C24","#294599","#FBB040"))+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = -90, hjust = 0))
-ggsave("../4_output_files/Figure_3c_VEPs_vs_aPCA.pdf")
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))+
+  ylim(c(-0.25,0.85))
+ggsave("output_files/Figure3c_VEPs_vs_aPCA.pdf")
 
 
 summary_stats_spearman_all<-VEP_correlations_spearman.mlt[,.(median_spearman_r=median(value,na.rm=TRUE)),
@@ -102,19 +104,19 @@ summary_stats_spearman_all<-VEP_correlations_spearman.mlt[,.(median_spearman_r=m
 
 #spearman's rho for increasingly stringent subsets of the data
 
-sprho_thresholds<-seq(0.5,0.85,0.05)
+sprho_thresholds<-seq(0.5,0.8,0.05)
 sprho_subsets<-data.table()
 
 for (thr in sprho_thresholds){
 
-VEP_correlations_spearman_filtered.mlt<-melt(VEP_correlations[replicate_r_spearman>thr & popEVE_completeness>0.5,
-                                                        c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman")],id.var="dom_ID")
+VEP_correlations_spearman_filtered.mlt<-data.table(melt(VEP_correlations[replicate_r>thr,
+                                                        c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","foldx_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman","eve_domain_r_spearman")],id.var="dom_ID"))
 
-VEP_correlations_spearman_filtered.mlt$variable<-factor(VEP_correlations_spearman_filtered.mlt$variable,                                             levels=c("esm1v_fl_r_spearman","popeve_r_spearman","esm1v_r_spearman","AlphaMissense_r_spearman","tranception_r_spearman","eve_r_spearman",
-                                                        "thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
+VEP_correlations_spearman_filtered.mlt$variable<-factor(VEP_correlations_spearman_filtered.mlt$variable,                                             levels=c("eve_domain_r_spearman","esm1v_r_spearman","popeve_r_spearman","esm1v_fl_r_spearman","tranception_r_spearman","AlphaMissense_r_spearman","eve_r_spearman",
+                                                        "thermoMPNN_ddG_r_spearman","foldx_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
                                                          "rsasa_r_spearman"))
 
-levels(VEP_correlations_spearman_filtered.mlt$variable)<-c("ESM1v\nfull-length","popEVE","ESM1v\ndomain","AlphaMissense","Tranception","EVE","thermoMPNN","ddmut","RaSP","rsasa")
+levels(VEP_correlations_spearman_filtered.mlt$variable)<-c("EVE\n domain","ESM1v\ndomain","popEVE","ESM1v\nfull-length","Tranception","AlphaMissense","EVE","thermoMPNN","FoldX","ddmut","RaSP","rsasa")
 
 
 summary_stats_spearman_all_filtered<-VEP_correlations_spearman_filtered.mlt[,.(median_spearman_r=median(value,na.rm=TRUE)),
@@ -161,8 +163,10 @@ ggplot(VEP_correlations_spearman.mlt[!is.na(`zinc finger`),])+
   scale_color_manual(values=c("#ED1C24","#294599","#FBB040"))+
   theme_classic()+
   theme(axis.text.x=element_text(angle = -90, hjust = 0))+
-  facet_wrap(~`zinc finger`)
-ggsave("output_files/ED_Figure_3_VEPs_vs_aPCA_zf_vs_nonzf.pdf")
+  facet_wrap(~`zinc finger`)+
+  ylim(c(-0.25,0.85))
+
+ggsave("output_files/ED_Figure3a_VEPs_vs_aPCA_zf_vs_nonzf.pdf")
 
 
 summary_stats_spearman_all_zf<-VEP_correlations_spearman.mlt[`zinc finger`=="zinc finger",.(median_spearman_r=median(value,na.rm=TRUE)),
@@ -171,38 +175,74 @@ summary_stats_spearman_all_zf<-VEP_correlations_spearman.mlt[`zinc finger`=="zin
 summary_stats_spearman_all_nozf<-VEP_correlations_spearman.mlt[`zinc finger`!="zinc finger",.(median_spearman_r=median(value,na.rm=TRUE)),
                                        by="variable"]
 
+#removing domains with homology to the Megascale dataset
 
+hmmer_domains_table<-fread("analysis_files/hmmscan_PFAM_domainome_megascale_homology.tsv")
+colnames(hmmer_domains_table)[c(1,2,4,7)]<-c("dom_ID","wt_seq","dataset","domain_family")
+
+families_megascale<-unique(hmmer_domains_table[dataset=="megascale",]$domain_family)
+domainome_homolog_free_families<-unique(hmmer_domains_table[dataset=="domainome" & !(domain_family %in% families_megascale),]$domain_family)
+
+domainome_homolog_free<-unique(hmmer_domains_table[dataset=="domainome" & !(domain_family %in% families_megascale),]$dom_ID)
+
+
+VEP_correlations_spearman.mlt[!(dom_ID %in% domainome_homolog_free),homolog:="yes"]
+VEP_correlations_spearman.mlt[dom_ID %in% domainome_homolog_free,homolog:="no"]
+
+ggplot(VEP_correlations_spearman.mlt[`zinc finger`=="",])+
+  geom_violin(aes(y=value,x=variable,col=type,fill=type),alpha=0.5)+
+  geom_boxplot(aes(y=value,x=variable,col=type),width=0.1,outlier.shape=NA)+
+  ylab("spearman's r")+
+  xlab("predictor")+
+  ggtitle("homology to Megascale domains (non-zinc finger domains only)")+
+  scale_fill_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  scale_color_manual(values=c("#ED1C24","#294599","#FBB040"))+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))+
+  facet_wrap(~homolog)+
+  ylim(c(-0.25,0.85))
+
+ggsave("output_files/ED_Figure3b_VEPs_vs_aPCA_homologfree.pdf")
+
+
+summary_stats_spearman_homologs<-VEP_correlations_spearman.mlt[`zinc finger`!="zinc finger" & homolog=="yes",.(median_spearman_r=median(value,na.rm=TRUE)),
+                                       by="variable"]
+
+summary_stats_spearman_nonhomologs<-VEP_correlations_spearman.mlt[`zinc finger`!="zinc finger" & homolog=="no",.(median_spearman_r=median(value,na.rm=TRUE)),
+                                       by="variable"]
+
+#plot example correlations
 
 ggplot(mutated_domainome_preds[dom_ID=="P67809_PF00313_52",])+
   geom_point(aes(x=thermoMPNN_ddG,y=scaled_gr))+
   scale_x_reverse()+
   xlab("thermoMPNN ∆∆G")+
   ylab("aPCA normalized fitness")
-ggsave("output_files/Figure_3b_example_correlations_thermoMPNN.pdf")
+ggsave("output_files/Figure3b_example_correlations_thermoMPNN.pdf")
 
 ggplot(mutated_domainome_preds[dom_ID=="P67809_PF00313_52",])+
   geom_point(aes(x=mean_esm1v_prediction_fl,y=scaled_gr))+
   xlab("esm1v prediction (mean)")+
   ylab("aPCA normalized fitness")
-ggsave("output_files/Figure_3b_example_correlations_esm1v.pdf")
+ggsave("output_files/Figure3b_example_correlations_esm1v.pdf")
 
 
 #spearman's rho for increasingly stringent subsets of the data
 
-sprho_thresholds_nonZF<-seq(0.5,0.85,0.05)
+sprho_thresholds_nonZF<-seq(0.5,0.8,0.05)
 sprho_subsets_nonZF<-data.table()
 
 for (thr in sprho_thresholds_nonZF){
 
-VEP_correlations_spearman_filtered.mlt<-melt(VEP_correlations[replicate_r_spearman>thr & popEVE_completeness>0.5,
-                                                        c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman")],id.var="dom_ID")
+VEP_correlations_spearman_filtered.mlt<-data.table(melt(VEP_correlations[replicate_r>thr,
+                                                        c("dom_ID","tranception_r_spearman","eve_r_spearman","thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","foldx_r_spearman","rasp_r_spearman","esm1v_r_spearman","esm1v_fl_r_spearman","popeve_r_spearman","rsasa_r_spearman","AlphaMissense_r_spearman","eve_domain_r_spearman")],id.var="dom_ID"))
 
 
-VEP_correlations_spearman_filtered.mlt$variable<-factor(VEP_correlations_spearman_filtered.mlt$variable,                                             levels=c("esm1v_fl_r_spearman","popeve_r_spearman","esm1v_r_spearman","AlphaMissense_r_spearman","tranception_r_spearman","eve_r_spearman",
-                                                        "thermoMPNN_ddG_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
+VEP_correlations_spearman_filtered.mlt$variable<-factor(VEP_correlations_spearman_filtered.mlt$variable,                                             levels=c("eve_domain_r_spearman","esm1v_r_spearman","popeve_r_spearman","esm1v_fl_r_spearman","tranception_r_spearman","AlphaMissense_r_spearman","eve_r_spearman",
+                                                        "thermoMPNN_ddG_r_spearman","foldx_r_spearman","ddmut_ddG_r_spearman","rasp_r_spearman",
                                                          "rsasa_r_spearman"))
 
-levels(VEP_correlations_spearman_filtered.mlt$variable)<-c("ESM1v\nfull-length","popEVE","ESM1v\ndomain","AlphaMissense","Tranception","EVE","thermoMPNN","ddmut","RaSP","rsasa")
+levels(VEP_correlations_spearman_filtered.mlt$variable)<-c("EVE\ndomain","ESM1v\ndomain","popEVE","ESM1v\nfull-length","Tranception","AlphaMissense","EVE","thermoMPNN","FoldX","ddmut","RaSP","rsasa")
 
 VEP_correlations_spearman_filtered.mlt[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
 VEP_correlations_spearman_filtered.mlt<-merge(VEP_correlations_spearman_filtered.mlt,pfamid_description,by="PFAM_ID",all.x = TRUE)
@@ -235,21 +275,22 @@ ggsave("output_files/median_spearman_rho_quality_filtering_nonZF.pdf")
 
 ```{r fraction of evo constraint explained by abundance - by family, fig.height=6, fig.width=8}
 
-VEP_correlations[,explainable_variance:=esm1v_r_averaged**2/replicate_r**2]
-VEP_correlations[explainable_variance>1,explainable_variance:=1]
 
+#fraction of fitness due to stability accounting for error in aPCA
 
-VEP_correlations[,explainable_variance_spearman:=esm1v_r_spearman_averaged**2/replicate_r_spearman**2]
-VEP_correlations[explainable_variance_spearman>1,explainable_variance_spearman:=1]
+VEP_correlations[,esm1v_fl_r_attenuation_corrected:=esm1v_fl_r/sqrt(replicate_r)]
+VEP_correlations[,explainable_variance:=esm1v_fl_r_attenuation_corrected**2]
 
-cor(VEP_correlations$explainable_variance_spearman,
-    VEP_correlations$explainable_variance,
-    use="pairwise.complete.obs")
+VEP_correlations[,esm1v_fl_r_spearman_attenuation_corrected:=esm1v_fl_r_spearman/sqrt(replicate_r_spearman)]
+VEP_correlations[,explainable_variance_spearman:=esm1v_fl_r_spearman_attenuation_corrected**2]
 
 ggplot(VEP_correlations)+
   geom_point(aes(x=explainable_variance,y=explainable_variance_spearman))+
   theme_classic()
-ggsave("output_files/ED_Figure_3b_parametric_vs_nonparametric_varexplained.pdf")
+ggsave("output_files/ED_Figure3c_parametric_vs_nonparametric_varexplained.pdf")
+
+cor(VEP_correlations$explainable_variance,VEP_correlations$explainable_variance_spearman,
+    use = "pairwise.complete.obs")
 
 VEP_correlations[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
 
@@ -279,18 +320,7 @@ ggplot(VEP_correlations[PFAM_ID %in% families_with_5,])+
   scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   theme_classic()
-ggsave("output_files/Figure_3d_esm1v_vs_aPCA.pdf")
-
-
-ggplot(VEP_correlations[PFAM_ID %in% families_with_5 & range_esm>10,])+
-  geom_violin(aes(x=explainable_variance,y=PFAM_ID_description,fill=scop_class,col=scop_class),alpha=0.5)+
-  geom_jitter(aes(x=explainable_variance,y=PFAM_ID_description,col=scop_class),size=0.5)+
-  geom_boxplot(aes(x=explainable_variance,y=PFAM_ID_description),width=0.3,outlier.shape = NA,alpha=0.5)+
-  scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
-  scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
-  theme_classic()
-ggsave("output_files/Figure_3d_esm1v_vs_aPCA_rangeesm10.pdf")
-
+ggsave("output_files/Figure3d_esm1v_vs_aPCA.pdf")
 
 
 ggplot(VEP_correlations[!is.na(scop_class),])+
@@ -300,12 +330,7 @@ ggplot(VEP_correlations[!is.na(scop_class),])+
   scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   theme_classic()
-ggsave("output_files/Figure_3e_esm1v_vs_aPCA_scopclasses.pdf")
-
-
-median(VEP_correlations[scop_class=="all beta",]$explainable_variance,na.rm=TRUE)
-median(VEP_correlations[scop_class=="all alpha",]$explainable_variance,na.rm=TRUE)
-median(VEP_correlations[scop_class=="small proteins",]$explainable_variance,na.rm=TRUE)
+ggsave("output_files/Figure3e_esm1v_vs_aPCA_scopclasses.pdf")
 
 
 ggplot(VEP_correlations[!is.na(domain_function),])+
@@ -315,19 +340,12 @@ ggplot(VEP_correlations[!is.na(domain_function),])+
   scale_color_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
   scale_fill_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
   theme_classic()
-ggsave("output_files/Figure_3f_esm1v_vs_aPCA_domainfunction.pdf")
-
-#spearman's r esm1v
-medians<-VEP_correlations[PFAM_ID %in% families_with_5,.(median(esm1v_fl_r_spearman,na.rm = TRUE)),by="PFAM_ID_description"]
-medians<-medians[order(V1,decreasing = TRUE),]
-
-VEP_correlations$PFAM_ID_description<-factor(VEP_correlations$PFAM_ID_description,
-                                             levels=medians$PFAM_ID_description)
-
+ggsave("output_files/Figure3f_esm1v_vs_aPCA_domainfunction.pdf")
 
 median(VEP_correlations$explainable_variance,na.rm=TRUE)
-median(VEP_correlations[scop_class=="all beta",]$explainable_variance,na.rm=TRUE)
+median(VEP_correlations[scop_class=="all beta" & N,]$explainable_variance,na.rm=TRUE)
 median(VEP_correlations[scop_class=="all alpha",]$explainable_variance,na.rm=TRUE)
+median(VEP_correlations[scop_class=="small proteins",]$explainable_variance,na.rm=TRUE)
 median(VEP_correlations[scop_class=="a/b a+b",]$explainable_variance,na.rm=TRUE)
 
 
@@ -336,7 +354,7 @@ median(VEP_correlations[scop_class=="a/b a+b",]$explainable_variance,na.rm=TRUE)
 
 ```{r tsubo}
 
-humanrocklin<-fread("../../39_domains_in_common_with_Rocklin/human_variants_rocklin_nobackgrounds")
+humanrocklin<-fread("analysis_files/human_variants_rocklin_nobackgrounds")
 
 dupdoms<-c("2LVN.pdb","2L7F.pdb","5FW9.pdb","2KCF.pdb","2M8I.pdb","2M8J.pdb","2M9F.pdb","2M9I.pdb","1SIF.pdb","5ZD0.pdb","6IPY.pdb","2MWB.pdb","2N4R","2N4S","2N4T")
 
@@ -356,10 +374,10 @@ unique(humanrocklin_nodupdoms_singles[is_single==1,]$V30)
 
 
 ggplot()+
-  geom_col(aes(y=c(5847,55238,536684),x=c("ProthermDB","Mega-scale","Domainome 1.0")))+
+  geom_col(aes(y=c(5847,55238,80229,536684),x=c("ProthermDB","Mega-scale","MaveDB","Domainome 1.0")))+
   xlab("Source")+
   ylab("number of human single\nmutant missense variants")
-ggsave("output_files/human_missense_counts_comparison.pdf")
+ggsave("output_files/Figure3a_human_missense_counts_comparison.pdf")
 
 
 ```
@@ -369,18 +387,7 @@ ggsave("output_files/human_missense_counts_comparison.pdf")
 
 mutated_domainome_preds_human_missense<-mutated_domainome_preds[!is.na(growthrate) & mut_aa!="*" & Organism=="Homo sapiens (Human)",]
 
-var_count_old<-c(nrow(mutated_domainome_preds_human_missense[!is.na(EVE),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(popEVE),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(Tranception),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(AlphaMissense_fitness),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(mean_esm1v_prediction),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(mean_esm1v_prediction_fl),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(thermoMPNN_ddG),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(ddmut_ddG),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(RaSP_score),]),
-             nrow(mutated_domainome_preds_human_missense[!is.na(rsasa_all),]))
-
-var_count_new<-c(nrow(mutated_domainome_preds_human_missense[!is.na(EVE_new),]),
+var_count<-c(nrow(mutated_domainome_preds_human_missense[!is.na(EVE_new),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(popEVE_new),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(Tranception_new),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(AlphaMissense_fitness),]),
@@ -389,27 +396,113 @@ var_count_new<-c(nrow(mutated_domainome_preds_human_missense[!is.na(EVE_new),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(thermoMPNN_ddG),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(ddmut_ddG),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(RaSP_score),]),
+             nrow(mutated_domainome_preds_human_missense[!is.na(foldx_ddg),]),
+             nrow(mutated_domainome_preds_human_missense[!is.na(EVE_score_domain),]),
              nrow(mutated_domainome_preds_human_missense[!is.na(rsasa_all),]))
 
 
-variant_coverage<-data.table(var_count_old,var_count_new,predictors=c("EVE","popEVE","Tranception","AlphaMissense","esm1v domain","esm1v full-length","thermoMPNN","ddmut","RaSP","rsasa_all"))
+variant_coverage<-data.table(var_count,predictors=c("EVE","popEVE","Tranception","AlphaMissense","esm1v domain","esm1v full-length","thermoMPNN","ddmut","RaSP","FoldX","EVE domain","rsasa_all"))
 
-variant_coverage[,perc_covered_old:=var_count_old/nrow(mutated_domainome_preds_human_missense)]
-variant_coverage[,perc_covered_new:=var_count_new/nrow(mutated_domainome_preds_human_missense)]
+variant_coverage[,perc_covered:=var_count/nrow(mutated_domainome_preds_human_missense)]
 
 variant_coverage$predictors<-factor(variant_coverage$predictors,
-                                    levels=c("EVE","popEVE","Tranception","AlphaMissense","esm1v domain","esm1v full-length","thermoMPNN","ddmut","RaSP","rsasa_all"))
+                                    levels=c("EVE","popEVE","Tranception","AlphaMissense","esm1v domain","esm1v full-length","thermoMPNN","ddmut","RaSP","FoldX","EVE domain","rsasa_all"))
 
 ggplot(variant_coverage)+
-  geom_col(aes(y=perc_covered_new,x=predictors))+
+  geom_col(aes(y=perc_covered,x=predictors))+
   theme_classic()+
   theme(axis.text.x=element_text(angle = -90, hjust = 0))
 
 
-ggplot(variant_coverage)+
-  geom_col(aes(y=perc_covered_old,x=predictors))+
-  theme_classic()+
-  theme(axis.text.x=element_text(angle = -90, hjust = 0))
 
+supp_table<-mutated_domainome_preds[,c("dom_ID","uniprot_ID","uniprotID_mutation","aa_seq","growthrate","growthrate_sigma","scaled_gr","scaled_gr_sigma","mean_esm1v_prediction","RaSP_score","ddmut_ddG","foldx_ddg","popEVE_new","EVE_new","Tranception_new","EVE_score_domain","rsasa_all","thermoMPNN_ddG","AlphaMissense_fitness","mean_esm1v_prediction_fl","Organism","Gene Names (primary)","Gene Names (synonym)")]
+
+colnames(supp_table)<-c("domain_ID","uniprot_ID","uniprot_ID_mutation","aa_seq","fitness","fitness_sigma","scaled_fitness","scaled_fitness_sigma","ESM1v_domain","RaSP","ddmut","FoldX","popEVE","EVE","Tranception","EVE_domain","rsasa","thermoMPNN","AlphaMissense","ESM1v_full-length","Organism","Gene Names (primary)","Gene Names (synonym)")
+
+write.table(supp_table,
+            "output_files/ED_Table_5_aPCA_vs_variant_effect_predictors.txt",
+            sep = "\t", quote=FALSE, row.names = FALSE)
 
 ```
+
+```{r stabilizing mutations}
+
+mutated_domainome_preds[,z:=scaled_gr/scaled_gr_sigma]
+mutated_domainome_preds[,p_stabilising:=1-pnorm(z)]
+mutated_domainome_preds[,fdr_stabilising:=p.adjust(p_stabilising,method="fdr")]
+mutated_domainome_preds[,p_destabilising:=pnorm(z)]
+mutated_domainome_preds[,fdr_destabilising:=p.adjust(p_destabilising,method="fdr")]
+
+mutated_domainome_preds[,stability_class:="wild type-like"]
+mutated_domainome_preds[fdr_stabilising<0.1 & scaled_gr>0.3,stability_class:="stabilizing"]
+mutated_domainome_preds[fdr_destabilising<0.1 & scaled_gr<0,stability_class:="mildly destabilizing"]
+mutated_domainome_preds[fdr_destabilising<0.1 & scaled_gr<(-0.3),stability_class:="strongly destabilizing"]
+
+
+mutated_domainome_preds_stab_proportion<-mutated_domainome_preds[,.(stab_proportion=length(which(stability_class=="stabilizing"))/length(which(!is.na(stability_class)))),by="dom_ID"]
+
+ggplot(mutated_domainome_preds_stab_proportion)+
+  geom_histogram(aes(x=stab_proportion))
+ggsave("output_files/stabilizing_fraction_perdomain.pdf")
+
+median(mutated_domainome_preds_stab_proportion$stab_proportion)
+
+mutated_domainome_preds$stability_class<-factor(mutated_domainome_preds$stability_class,
+                                                                levels=c("stabilizing","wild type-like","mildly destabilizing","strongly destabilizing"))
+
+ggplot(mutated_domainome_preds[dom_ID %in% mutated_domainome_preds_stab_proportion[stab_proportion<0.025,]$dom_ID,])+
+  geom_violin(aes(y=mean_esm1v_prediction,x=stability_class))+
+  geom_boxplot(aes(y=mean_esm1v_prediction,x=stability_class),width=0.15,outlier.shape = NA)
+ggsave("output_files/stabilizing_ESM1v_scores.pdf")
+
+
+ggplot(mutated_domainome_preds[dom_ID %in% mutated_domainome_preds_stab_proportion[stab_proportion<0.025,]$dom_ID,])+
+  geom_violin(aes(y=thermoMPNN_ddG,x=stability_class))+
+  geom_boxplot(aes(y=thermoMPNN_ddG,x=stability_class),width=0.15,outlier.shape=NA)
+ggsave("output_files/stabilizing_thermoMPNN_scores.pdf")
+
+
+#proportions of mutation types in stability classes
+
+wt_aa_proportions<-prop.table(table(mutated_domainome_preds$wt_aa,mutated_domainome_preds$stability_class),margin=2)
+mut_aa_proportions<-prop.table(table(mutated_domainome_preds$mut_aa,mutated_domainome_preds$stability_class),margin=2)
+core_proportions<-prop.table(table(mutated_domainome_preds$core,mutated_domainome_preds$stability_class),margin=2)
+
+mut_aa_proportions[,1]/mut_aa_proportions[,4]
+
+#split by core-surface
+
+wt_aa_proportions<-prop.table(table(mutated_domainome_preds[core=="core",]$wt_aa,mutated_domainome_preds[core=="core",]$stability_class),margin=2)
+mut_aa_proportions<-prop.table(table(mutated_domainome_preds[core=="core" & mut_aa !="*",]$mut_aa,mutated_domainome_preds[core=="core" & mut_aa!="*",]$stability_class),margin=2)
+
+barplot(log2(mut_aa_proportions[,1]/mut_aa_proportions[,4]),main="stabilizing vs destabilizing - cores")
+
+wt_aa_proportions<-prop.table(table(mutated_domainome_preds[core=="surface",]$wt_aa,mutated_domainome_preds[core=="surface",]$stability_class),margin=2)
+mut_aa_proportions<-prop.table(table(mutated_domainome_preds[core=="surface" & mut_aa !="*",]$mut_aa,mutated_domainome_preds[core=="surface" & mut_aa!="*",]$stability_class),margin=2)
+
+barplot(log2(mut_aa_proportions[,1]/mut_aa_proportions[,4]),main="stabilizing vs destabilizing - surfaces")
+
+
+#proportions of mutation types in stabilizing mutation classes
+
+mutated_domainome_preds[,stabilizing_lowfitness:=NA]
+mutated_domainome_preds[stability_class=="stabilizing",stabilizing_lowfitness:="no"]
+mutated_domainome_preds[stability_class=="stabilizing" & mean_esm1v_prediction<(-10),stabilizing_lowfitness:="yes"]
+
+wt_aa_proportions<-prop.table(table(mutated_domainome_preds$wt_aa,mutated_domainome_preds$stabilizing_lowfitness),margin=2)
+mut_aa_proportions<-prop.table(table(mutated_domainome_preds$mut_aa,mutated_domainome_preds$stabilizing_lowfitness),margin=2)
+core_proportions<-prop.table(table(mutated_domainome_preds$core,mutated_domainome_preds$stabilizing_lowfitness),margin=2)
+
+
+#proportions of core surface and aa in stabilising mutations
+mut_aa_proportions_core<-prop.table(table(mutated_domainome_preds[stability_class=="stabilizing" & mut_aa !="*",]$mut_aa,mutated_domainome_preds[stability_class=="stabilizing" & mut_aa !="*",]$core),margin=2)
+
+pdf("output_files/stabilizing_mutaa_enrichments_core_vs_surface.pdf")
+barplot(log2(mut_aa_proportions_core[,1]/mut_aa_proportions_core[,2]), main="stabilizing variants - core vs surface enrichments")
+dev.off()
+
+```
+
+
+
+

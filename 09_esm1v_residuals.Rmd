@@ -14,11 +14,11 @@ library(bigsnpr)
 library(drc)
 library(viridis)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 mutated_domainome<-fread("analysis_files/mutated_domainome_merged_filtered.txt")
-esm1v_predictions<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs.txt")[,c("aa_seq","mean_esm1v_prediction_fl","mean_esm1v_prediction")]
+esm1v_predictions<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")[,c("aa_seq","mean_esm1v_prediction_fl","mean_esm1v_prediction")]
 
 ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
 
@@ -150,7 +150,7 @@ for (i in seq(length(doms_for_fitting))){
    print(residuals_heatmap(subset_toplot,doms_for_fitting[i])+
            ggtitle(paste(doms_for_fitting[i]))+
            theme_classic())
-   ggsave(paste0("output_files/Figure_5b_",doms_for_fitting[i],"_","esm1vres_heatmap.pdf",collapse=""))
+   ggsave(paste0("output_files/Figure4b_",doms_for_fitting[i],"_","esm1vres_heatmap.pdf",collapse=""))
 
   #plot fits
   print(ggplot(subset_toplot)+
@@ -159,7 +159,7 @@ for (i in seq(length(doms_for_fitting))){
      theme_classic()+
      scale_color_gradient2(low="red",mid="grey80",high="blue",midpoint=0)+
      ggtitle(doms_for_fitting[i]))
-   ggsave(paste0("output_files/Figure_5a_",doms_for_fitting[i],"_","esm1vres.pdf",collapse=""))
+   ggsave(paste0("output_files/Figure4a_",doms_for_fitting[i],"_","esm1vres.pdf",collapse=""))
    
   }
   

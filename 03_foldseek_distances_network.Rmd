@@ -10,7 +10,7 @@ output: html_document
 
 library(data.table)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 foldseek_distances<-fread("analysis_files/pdb_files/foldseek_easy_allvsall")

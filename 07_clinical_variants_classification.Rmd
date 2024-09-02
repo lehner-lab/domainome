@@ -14,7 +14,7 @@ library(ggpubr)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files/"
 setwd(base_dir)
 
 clinvar_directmerge<-fread("analysis_files/clinical_variants_measured_clinvar_labels.txt")
@@ -36,15 +36,6 @@ mutated_domainome[, c("PFAM_ID") := tstrsplit(dom_ID, "_", fixed = TRUE)[2]]
 mutated_domainome[aa_seq %in% vus,clinical_class:="Uncertain"]
 mutated_domainome[aa_seq %in% benign,clinical_class:="Benign"]
 mutated_domainome[aa_seq %in% pathogenic,clinical_class:="Pathogenic"]
-
-supp_table_2_clinical_variants<-mutated_domainome[,c("dom_ID","uniprot_ID","aa_seq","wt_aa","pos_in_uniprot","mut_aa","STOP","count_e1_s0","count_e2_s0","count_e3_s0","count_e1_s1","count_e2_s1","count_e3_s1","mean_count","growthrate","growthrate_sigma","scaled_gr","scaled_gr_sigma","clinical_class")]
-
-colnames(supp_table_2_clinical_variants)<-c("domain_ID","uniprot_ID","aa_seq","wt_aa","position","mut_aa","STOP","input_count_rep1","input_count_rep2","input_count_rep3","output_count_rep1","output_count_rep2","output_count_rep3",
-                         "mean_input_count","fitness","fitness_sigma","normalized_fitness","normalized_fitness_sigma","clinical_class")
-
-write.table(supp_table_2_clinical_variants,
-            file="../4_output_files/Supplementary_Table_2_fitness_scores_normalized.txt",
-            sep="\t",row.names = FALSE)
 
 mutated_domainome_missense<-mutated_domainome[mut_aa!="*",]
 
@@ -129,7 +120,7 @@ ggplot(summary_proportions)+
   geom_col(aes(y=clinical_class,x=proportion,fill=destabilizing))+
   theme_classic()+
   scale_fill_manual(values=c("#ED1C24","#8A96CB","#294599"))
-ggsave("output_files/Figure_4b_destabilization_vs_pathogenicity_proportions_allvariants.pdf",height=3,width=5)
+ggsave("output_files/Figure_5b_destabilization_vs_pathogenicity_proportions_allvariants.pdf",height=3,width=5)
 
 
 #variant count distributions
@@ -149,7 +140,7 @@ ggplot(pathogenic_vars_per_domain_cumsum)+
   geom_line(aes(x=rank/max(rank)*100,y=cumsum/max(cumsum)*100))+
   ylab("number of pathogenic variants")+
   xlab("rank")
-ggsave("output_files/ED_Figure_4a_pathogenic_variant_giniplot_percentage.pdf")
+ggsave("output_files/ED_Figure_5a_pathogenic_variant_giniplot_percentage.pdf")
 
 
 benign_vars_per_domain<-data.frame(table(table(mutated_domainome_missense[clinical_class=="Benign" & !is.na(scaled_gr)]$dom_ID)[order(table(mutated_domainome_missense[clinical_class=="Benign"]$dom_ID),decreasing=TRUE)]))
@@ -241,7 +232,7 @@ ggplot()+
   geom_density(data=mutated_domainome_gnomad[af>1e-5,],aes(x=scaled_gr,col=gnomad_variants_1e5))+
   scale_color_manual(values=c("#294599","#A0ACD7","#ED1C24","grey"))+
   theme_classic()
-ggsave("output_files/Figure_4a_aPCA_vs_pathogenicity_density.pdf")
+ggsave("output_files/Figure5a_aPCA_vs_pathogenicity_density.pdf")
 
 table(mutated_domainome_gnomad$gnomad_variants)
 table(mutated_domainome_gnomad$gnomad_variants_1e5)
@@ -333,12 +324,122 @@ toplot$PFAM_ID<-factor(toplot$PFAM_ID,
 
 ggplot(toplot)+
   geom_col(aes(y=PFAM_ID,x=proportions,fill=stabclass,group=clinicalclass),dodge=TRUE)
-ggsave("output_files/Figure_4a_ED_Figure_4b_destab_proportions_by_family.pdf")
+ggsave("output_files/Figure_5a_ED_Figure_5b_destab_proportions_by_family.pdf")
 
 
 
 
 ```
+
+#classifier - all pathogenic variants together
+
+```{r classifier all variants}
+
+library(pROC)
+library(PRROC)
+library(mltools)
+mutated_domainome_gnomad_toclassify<-data.table(mutated_domainome_gnomad)
+mutated_domainome_gnomad_toclassify<-mutated_domainome_gnomad_toclassify[mean_count>10 & !is.na(scaled_gr) & mut_aa!="*",]
+mutated_domainome_gnomad_toclassify[clinical_class=="Benign",clinical_class_roc:=0]
+mutated_domainome_gnomad_toclassify[gnomad_variants_1e5=="gnomad_1e-5",clinical_class_roc:=0]
+mutated_domainome_gnomad_toclassify[clinical_class=="Pathogenic",clinical_class_roc:=1]
+mutated_domainome_gnomad_toclassify_clinical<-mutated_domainome_gnomad_toclassify[!is.na(clinical_class_roc),]
+VEPs<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")
+VEPs_filtered<-VEPs[,c("aa_seq","mean_esm1v_prediction_fl","EVE_new","Tranception_new","popEVE_new","AlphaMissense_fitness","foldx_ddg","thermoMPNN_ddG","ddmut_ddG","RaSP_score")]
+
+
+mutated_domainome_gnomad_toclassify_clinical<-merge(mutated_domainome_gnomad_toclassify_clinical,VEPs_filtered,by="aa_seq",all.x=TRUE)
+mutated_domainome_gnomad_toclassify_clinical_noNA<-mutated_domainome_gnomad_toclassify_clinical[!is.na(scaled_gr) & !is.na(AlphaMissense_fitness) & !is.na(mean_esm1v_prediction_fl) & !is.na(popEVE_new) & !is.na(foldx_ddg) & !is.na(thermoMPNN_ddG),]
+
+
+pdf("output_files/ED_Figure5c_patho_vs_benign_roccurves_predictorcomparisons_leftoutdata.pdf")
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$mean_esm1v_prediction_fl),col="orange",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.7)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$popEVE_new),add=TRUE,col="brown",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.625)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$AlphaMissense_fitness),add=TRUE,col="red",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.55)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$thermoMPNN_ddG),add=TRUE,col="lightblue",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.475)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$foldx_ddg),add=TRUE,col="blue",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+mutated_domainome_gnomad_toclassify_clinical_noNA$scaled_gr),add=TRUE,print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.325)
+# Add legend
+legend("topright",
+legend=c("esm1v", "popEVE", "AlphaMissense","thermoMPNN","FoldX","aPCA"),
+col=c("orange", "brown", "red","lightblue","blue","black"),
+lwd=1, cex =0.5, xpd = TRUE, horiz = FALSE)
+dev.off()
+
+
+#classify
+aPCA_alone<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ scaled_gr,family = "binomial")
+aPCA_and_features<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ scaled_gr + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+esm1v_alone<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ mean_esm1v_prediction_fl,family = "binomial")
+esm1v_and_aPCA<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl,family = "binomial")
+esm1v_aPCA_and_features<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+features_alone<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+
+pdf("output_files/ED_Figure5d_roccurve_combinations_all.pdf")
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(aPCA_alone)),col="lightblue",print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.5)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(features_alone)),col="grey",add=TRUE,print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.425)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(aPCA_and_features)),col="blue",add=TRUE,print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.35)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(esm1v_alone)),col="red",add=TRUE,print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.275)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(esm1v_and_aPCA)),add=TRUE,col="purple",print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.2)
+plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
+predict(esm1v_aPCA_and_features)),add=TRUE,print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.125)
+# Add legend
+legend("topright",
+legend=c("aPCA", "features", "esm1v","aPCA+esm1v","aPCA+features","aPCA+esm1v+features"),
+col=c("lightblue", "grey", "red","purple","blue","black"),
+lwd=1, cex =0.5, xpd = TRUE, horiz = FALSE)
+dev.off()
+
+#overfit?
+  
+#train-test splits
+n = nrow(mutated_domainome_gnomad_toclassify_clinical_noNA)
+
+train_split<-mutated_domainome_gnomad_toclassify_clinical_noNA[sample(1:n,size = round(n*0.9))]
+test_split<-mutated_domainome_gnomad_toclassify_clinical_noNA[!(aa_seq %in% train_split$aa_seq),]
+
+aPCA_alone<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr,family = "binomial")
+aPCA_and_features<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+esm1v_alone<-glm(data = train_split,formula = clinical_class_roc ~ mean_esm1v_prediction_fl,family = "binomial")
+esm1v_and_aPCA<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl,family = "binomial")
+esm1v_aPCA_and_features<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+features_alone<-glm(data = train_split, formula = clinical_class_roc ~ wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
+
+pdf("output_files/ED_Figure5d_roccurve_combinations_leftoutdata.pdf")
+plot(roc(test_split$clinical_class_roc,
+predict(aPCA_alone,newdata = test_split)),col="lightblue",print.auc=TRUE,print.auc.x=0.4)
+plot(roc(test_split$clinical_class_roc,
+predict(features_alone,newdata = test_split)),col="grey",add=TRUE,print.auc=TRUE,print.auc.y=0.425,print.auc.x=0.4)
+plot(roc(test_split$clinical_class_roc,
+predict(esm1v_alone,newdata = test_split)),col="red",add=TRUE,print.auc=TRUE,print.auc.y=0.35,print.auc.x=0.4)
+plot(roc(test_split$clinical_class_roc,
+predict(esm1v_and_aPCA,newdata = test_split)),add=TRUE,col="purple",print.auc=TRUE,print.auc.y=0.275,print.auc.x=0.4)
+plot(roc(test_split$clinical_class_roc,
+predict(aPCA_and_features,newdata=test_split)),col="blue",add=TRUE,print.auc=TRUE,print.auc.y=0.2,print.auc.x=0.4)
+plot(roc(test_split$clinical_class_roc,
+ predict(esm1v_aPCA_and_features,newdata=test_split)),add=TRUE,print.auc=TRUE,print.auc.y=0.125,print.auc.x=0.4)
+
+# Add legend
+legend("topright",
+legend=c("aPCA", "features", "esm1v","aPCA+esm1v","aPCA+features","aPCA+esm1v+features"),
+col=c("lightblue", "grey", "red","purple","blue","black"),
+lwd=1, cex =0.5, xpd = TRUE, horiz = FALSE)
+dev.off()
+
+
+```
+
 
 #classifier - individual domains: adding gnomad 1e-5
 
@@ -348,9 +449,10 @@ library(pROC)
 library(PRROC)
 library(mltools)
 
-
 doms<-c()
 mcc_values<-c()
+mcc_values_sampled_mean<-c()
+mcc_values_sampled_sigma<-c()
 auc_values<-c()
 prc_values<-c()
 best_abundance_thrs<-c()
@@ -360,56 +462,90 @@ destab_benign<-c()
 stable_benign<-c()
 gene_name<-c()
 
-
 for (domid in unique(clinvars_per_domain[pathogenic>2,]$dom_ID)){
   
-  subset<-mutated_domainome_gnomad[dom_ID==domid & mean_count>10 & !is.na(scaled_gr) & mut_aa!="*",]
+subset<-mutated_domainome_gnomad[dom_ID==domid & mean_count>10 & !is.na(scaled_gr) & mut_aa!="*",]
+subset[clinical_class=="Benign",clinical_class_roc:=0]
+subset[gnomad_variants_1e5=="gnomad_1e-5",clinical_class_roc:=0]
+subset[clinical_class=="Pathogenic",clinical_class_roc:=1]
+subset_clinical<-subset[!is.na(clinical_class_roc),]
+
+subset[is.na(clinical_class),clinical_class:="none"]
+
+if (nrow(subset_clinical[clinical_class_roc==0,])>0 & nrow(subset_clinical[clinical_class_roc==1,])>0){
   
-  subset[clinical_class=="Benign",clinical_class_roc:=0]
-  subset[gnomad_variants_1e5=="gnomad_1e-5",clinical_class_roc:=0]
-  subset[clinical_class=="Pathogenic",clinical_class_roc:=1]
   
-  subset_clinical<-subset[!is.na(clinical_class_roc),]
-  
-  if (nrow(subset_clinical[clinical_class_roc==0,])>0 & nrow(subset_clinical[clinical_class_roc==1,])>0){
-  
-  if (domid %in% c("P51608_PF01429_91","Q9UPW6_PF02376_358","Q9H3D4_PF07647_545","P10275_PF000105_557","O43186_PF00046_41","Q13642_PF00412_99")){
+  if (domid %in% c("P51608_PF01429_91","Q9UPW6_PF02376_358","Q9H3D4_PF07647_545","P55895_PF13341_415","O43186_PF00046_41","Q13642_PF00412_99")){
+    #plot data
+    ggplot(subset)+
+    geom_density(aes(x=scaled_gr),fill="grey75",alpha=0.15,col="grey50")+
+    geom_vline(xintercept=subset[gnomad_variants_1e5=="gnomad_1e-5" & clinical_class !="Pathogenic" & clinical_class !="Benign",]$scaled_gr,col="#294599")+
+    geom_vline(xintercept=subset[clinical_class=="Benign",]$scaled_gr,col="#294599")+
+    geom_vline(xintercept=subset[clinical_class=="Pathogenic",]$scaled_gr,col="#ED1C24")+
+    geom_vline(xintercept=mutated_domainome_gnomad[dom_ID==domid & WT==TRUE,]$scaled_gr,col="black")+
+    ggtitle(domid)+
+    coord_cartesian(xlim=c(-1.25,0.25))+
+    theme_classic()
+    ggsave(paste("output_files/Figure_5c_",domid,"_stabdist_clinvars.pdf",sep=""),width=4,height=3)
+        
+    ggplot()+
+    geom_violin(data=subset[scaled_gr>(-1.5),],aes(y=scaled_gr,x="all"))+
+    geom_violin(data=subset[clinical_class=="Benign",],aes(y=scaled_gr,x="Benign"))+
+    geom_violin(data=subset[clinical_class=="Pathogenic",],aes(y=scaled_gr,x="Pathogenic"))+
+    geom_violin(data=subset[gnomad_variants_1e5=="gnomad_1e-5" & clinical_class != "Pathogenic" & clinical_class != "Benign",],aes(y=scaled_gr,x="gnomad"))+
+    geom_jitter(data=subset[scaled_gr>(-1.5),],aes(y=scaled_gr,x="all"),col="orange",size=0.75,height=0)+
+    geom_jitter(data=subset[clinical_class=="Benign",],aes(y=scaled_gr,x="Benign"),col="blue",size=2,height=0)+
+    geom_jitter(data=subset[clinical_class=="Pathogenic",],aes(y=scaled_gr,x="Pathogenic"),col="red",size=2,height=0)+
+    geom_jitter(data=subset[gnomad_variants_1e5=="gnomad_1e-5" & clinical_class != "Pathogenic" & clinical_class != "Benign",],aes(y=scaled_gr,x="gnomad"),col="lightblue",size=2,height=0)+
+    ggtitle(domid)+
+    theme_classic()
+    ggsave(paste("output_files/Figure_5c_",domid,"_stabdist_clinvars_violins.pdf",sep=""),width=4,height=3)
     
-  #plot data
-  print(ggplot(subset)+
-  geom_density(aes(x=scaled_gr),fill="grey75",alpha=0.15,col="grey50")+
-  geom_vline(xintercept=subset[gnomad_variants_1e5=="gnomad_1e-5",]$scaled_gr,col="#294599")+
-  geom_vline(xintercept=subset[clinical_class=="Benign",]$scaled_gr,col="#294599")+
-  geom_vline(xintercept=subset[clinical_class=="Pathogenic",]$scaled_gr,col="#ED1C24")+
-  geom_vline(xintercept=mutated_domainome_gnomad[dom_ID==domid & WT==TRUE,]$scaled_gr,col="black")+
-  ggtitle(domid)+
-  coord_cartesian(xlim=c(-1.25,0.25))+
-  theme_classic())
-  ggsave(paste("output_files/Figure_4c_",domid,"_stabdist_clinvars.pdf",sep=""),width=4,height=3)
-  }
-    
+    print(domid)
+    print(nrow(subset[clinical_class=="Pathogenic" & destab=="true" & scaled_gr<(-0.3),])/nrow(subset[clinical_class=="Pathogenic",]))
+    }
+
+  
   #auroc, prc
   roc<-roc.curve(scores.class0 = subset_clinical[clinical_class_roc==0,]$scaled_gr,
-                 scores.class1 = subset_clinical[clinical_class_roc==1,]$scaled_gr,
-                 curve=FALSE)
+  scores.class1 = subset_clinical[clinical_class_roc==1,]$scaled_gr,curve=FALSE)
   prc<-pr.curve(scores.class0 = subset_clinical[clinical_class_roc==0,]$scaled_gr,
-                 scores.class1 = subset_clinical[clinical_class_roc==1,]$scaled_gr,
-                 curve=FALSE)
-   
+  scores.class1 = subset_clinical[clinical_class_roc==1,]$scaled_gr,curve=FALSE)
+  
   #recover best mcc
   mccs<-c()
   for (gr_thr in seq(min(subset_clinical$scaled_gr),max(subset_clinical$scaled_gr),by = 0.0025)){
-    predictions<-rep(1,length(subset_clinical$scaled_gr))
-    predictions[which(subset_clinical$scaled_gr>gr_thr)]<-0
-
-    mccs<-c(mccs,mcc(preds=predictions,
-        actuals=subset_clinical$clinical_class_roc))
+  predictions<-rep(1,length(subset_clinical$scaled_gr))
+  predictions[which(subset_clinical$scaled_gr>gr_thr)]<-0
+  mccs<-c(mccs,mcc(preds=predictions,
+  actuals=subset_clinical$clinical_class_roc))
   }
   
-  best_abundance_thr<-seq(min(subset_clinical$scaled_gr),max(subset_clinical$scaled_gr),by=0.0025)[which.max(mccs)]
+  #mcc taking into account the errors in normalized fitness
   
+  mccs_sampledgrs_values<-c()
+  
+  for (i in 1:10){
+  sample_from_row <- function(mean, error) {rnorm(1, mean, error)}
+  subset_clinical[, sampled_scaled_gr := apply(.SD, 1, function(row) sample_from_row(row[1], row[2])), .SDcols = c("scaled_gr", "scaled_gr_sigma")]
+  
+  mccs_sampledgrs<-c()
+  for (gr_thr in seq(min(subset_clinical$sampled_scaled_gr),max(subset_clinical$sampled_scaled_gr),by = 0.0025)){
+  predictions<-rep(1,length(subset_clinical$sampled_scaled_gr))
+  predictions[which(subset_clinical$sampled_scaled_gr>gr_thr)]<-0
+  mccs_sampledgrs<-c(mccs_sampledgrs,mcc(preds=predictions,
+  actuals=subset_clinical$clinical_class_roc))
+  }
+  
+  mccs_sampledgrs_values<-c(mccs_sampledgrs_values,max(mccs_sampledgrs))
+  }
+  
+  
+  best_abundance_thr<-seq(min(subset_clinical$scaled_gr),max(subset_clinical$scaled_gr),by=0.0025)[which.max(mccs)]
   doms<-c(doms,domid)
   mcc_values<-c(mcc_values,max(mccs))
+  mcc_values_sampled_mean<-c(mcc_values_sampled_mean,mean(mccs_sampledgrs_values))
+  mcc_values_sampled_sigma<-c(mcc_values_sampled_sigma,sd(mccs_sampledgrs_values))
   best_abundance_thrs<-c(best_abundance_thrs,best_abundance_thr)
   auc_values<-c(auc_values,roc$auc)
   prc_values<-c(prc_values,prc$auc.integral)
@@ -421,12 +557,152 @@ for (domid in unique(clinvars_per_domain[pathogenic>2,]$dom_ID)){
 
 }}
 
-summary_gnomad1e5<-data.table(doms,mcc_values,best_abundance_thrs,auc_values,prc_values,stable_benign,destab_benign,stable_pathogenic,destab_pathogenic,gene_name)
+summary_gnomad1e5<-data.table(doms,mcc_values,best_abundance_thrs,auc_values,prc_values,stable_benign,destab_benign,stable_pathogenic,destab_pathogenic,gene_name,
+                              mcc_values_sampled_mean,mcc_values_sampled_sigma)
 
 ggplot(summary_gnomad1e5)+
-  geom_point(aes(x=auc_values,y=mcc_values))
+geom_point(aes(x=auc_values,y=mcc_values))
 cor(summary_gnomad1e5$mcc_values,summary_gnomad1e5$auc_values)
 
+cor(summary_gnomad1e5$mcc_values,summary_gnomad1e5$mcc_values_sampled_mean)
+
+ggplot(summary_gnomad1e5)+
+  geom_point(aes(x=mcc_values,y=mcc_values_sampled_mean))
+
+
+```
+
+#non-destabilizing pathogenic variants in example domains, classes
+
+```{r examples}
+
+#MECP2 pathogenic stable mutations
+
+mecp2_pathogenic<-mutated_domainome_gnomad[dom_ID=="P51608_PF01429_91" & clinical_class=="Pathogenic",]
+
+#interface residues defined using getcontacts
+binding_interface<-c(25,19,21,26,24,43,23,31,33,22,29,46,44,68,69)
+second_shell<-c(17,18,20,30,27,28,32,15,16,34,35,41,42,45,47,67,48,49,50,66,70,71,72,2,3,4)
+
+mecp2_pathogenic[,loc_class:='other']
+mecp2_pathogenic[pos %in% binding_interface,loc_class:="DNA_binding"]
+mecp2_pathogenic[pos %in% second_shell,loc_class:="second_shell"]
+
+
+nres_bint<-length(binding_interface)
+nres_sshell<-length(second_shell)
+nres_other<-nchar("RGPMYDDPTLPEGWTRKLEQRKSGRSAGKYDVYLINPQGKAFRSKVELIAYFEKVGDTSLDPNDFDFTVTGR")-nres_bint-nres_sshell
+
+#stable pathogenic
+mecp2_pathogenic_stable<-mecp2_pathogenic[scaled_gr>(-0.3),]
+npath_bint<-length(unique(mecp2_pathogenic_stable[loc_class=="DNA_binding",]$pos))
+npath_sshell<-length(unique(mecp2_pathogenic_stable[loc_class=="second_shell",]$pos))
+npath_other<-length(unique(mecp2_pathogenic_stable[loc_class=="other",]$pos))
+
+fisher.test(cbind(c(npath_bint,nres_bint),c(npath_other,nres_other)))
+fisher.test(cbind(c(npath_sshell,nres_sshell),c(npath_other,nres_other)))
+fisher.test(cbind(c(npath_bint+npath_sshell,nres_bint+nres_sshell),c(npath_other,nres_other)))
+
+#unstable pathogenic
+mecp2_pathogenic_unstable<-mecp2_pathogenic[scaled_gr<(-0.3),]
+npath_bint_unstable<-length(unique(mecp2_pathogenic_unstable[loc_class=="DNA_binding",]$pos))
+npath_sshell_unstable<-length(unique(mecp2_pathogenic_unstable[loc_class=="second_shell",]$pos))
+npath_other_unstable<-length(unique(mecp2_pathogenic_unstable[loc_class=="other",]$pos))
+
+fisher.test(cbind(c(npath_bint_unstable,nres_bint),c(npath_other_unstable,nres_other)))
+fisher.test(cbind(c(npath_sshell_unstable,nres_sshell),c(npath_other_unstable,nres_other)))
+fisher.test(cbind(c(npath_bint_unstable+npath_sshell_unstable,nres_bint+nres_sshell),c(npath_other_unstable,nres_other)))
+
+mecp2_counts<-data.table(stable=c(npath_bint,npath_other,npath_sshell),
+           unstable=c(npath_bint_unstable,npath_other_unstable,npath_sshell_unstable),
+           all_residues=c(nres_bint,nres_other,nres_sshell),
+           loc_class=c("binding interface","other","second shell"))
+
+mecp2_counts$loc_class<-factor(mecp2_counts$loc_class,
+                             levels=c("binding interface","second shell","other"))
+
+library(reshape2)
+ggplot(data.table(melt(mecp2_counts))[variable=="stable",])+
+  geom_col(aes(y=loc_class,x=value,fill=loc_class))+
+  scale_fill_manual(values=c("red","salmon","beige"))
+ggsave("output_files/ED_Figure5d_stable_pathogenic_MECP2.pdf")
+
+#enrichment in basic residues
+fisher.test(cbind(c(8,9),c(12,60)))
+
+#plot loc enrichments
+ors<-data.table(class=c("stable_bint","stable_sshell","unstable_bint","unstable_sshell"),
+                or=c(5.00,4.09,0.83,1.42))
+
+ggplot(ors)+
+  geom_col(aes(x=or,y=class))
+ggsave("output_files/ED_Figure5d_stable_pathogenic_MECP2_ORs.pdf")
+
+
+
+
+
+#CRX pathogenic stable mutations
+
+crx_pathogenic<-mutated_domainome_gnomad[dom_ID=="O43186_PF00046_41" & clinical_class=="Pathogenic",]
+#interface residues defined using getcontacts
+binding_interface<-c(1,2,3,4,6,23,42,45,49,48,51,55)
+second_shell<-c(21, 22, 24, 25,  5, 38, 39, 40, 41, 43, 44, 46, 47, 50, 52, 53, 18, 54, 56, 10, 11, 14,  7,  8)
+
+crx_pathogenic[,loc_class:='other']
+crx_pathogenic[pos %in% binding_interface,loc_class:="DNA_binding"]
+crx_pathogenic[pos %in% second_shell,loc_class:="second_shell"]
+
+
+nres_bint<-length(binding_interface)
+nres_sshell<-length(second_shell)
+nres_other<-nchar("QERTTFTRSQLEELEALFAKTQYPDVYAREEVALKINLPESRVQVWFKNRRAKCRQ")-nres_bint-nres_sshell
+
+#stable pathogenic
+crx_pathogenic_stable<-crx_pathogenic[scaled_gr>(-0.3),]
+npath_bint<-length(unique(crx_pathogenic_stable[loc_class=="DNA_binding",]$pos))
+npath_sshell<-length(unique(crx_pathogenic_stable[loc_class=="second_shell",]$pos))
+npath_other<-length(unique(crx_pathogenic_stable[loc_class=="other",]$pos))
+
+fisher.test(cbind(c(npath_bint,nres_bint),c(npath_other,nres_other)))
+fisher.test(cbind(c(npath_sshell,nres_sshell),c(npath_other,nres_other)))
+fisher.test(cbind(c(npath_bint+npath_sshell,nres_bint+nres_sshell),c(npath_other,nres_other)))
+
+#unstable pathogenic
+crx_pathogenic_unstable<-crx_pathogenic[scaled_gr<(-0.3),]
+npath_bint_unstable<-length(unique(crx_pathogenic_unstable[loc_class=="DNA_binding",]$pos))
+npath_sshell_unstable<-length(unique(crx_pathogenic_unstable[loc_class=="second_shell",]$pos))
+npath_other_unstable<-length(unique(crx_pathogenic_unstable[loc_class=="other",]$pos))
+
+fisher.test(cbind(c(npath_bint_unstable,nres_bint),c(npath_other_unstable,nres_other)))
+fisher.test(cbind(c(npath_sshell_unstable,nres_sshell),c(npath_other_unstable,nres_other)))
+fisher.test(cbind(c(npath_bint_unstable+npath_sshell_unstable,nres_bint+nres_sshell),c(npath_other_unstable,nres_other)))
+
+crx_counts<-data.table(stable=c(npath_bint,npath_other,npath_sshell),
+           unstable=c(npath_bint_unstable,npath_other_unstable,npath_sshell_unstable),
+           all_residues=c(nres_bint,nres_other,nres_sshell),
+           loc_class=c("binding interface","other","second shell"))
+
+crx_counts$loc_class<-factor(crx_counts$loc_class,
+                             levels=c("binding interface","second shell","other"))
+
+ggplot(data.table(melt(crx_counts))[variable=="stable",])+
+  geom_col(aes(y=loc_class,x=value,fill=loc_class))+
+  scale_fill_manual(values=c("red","salmon","beige"))
+ggsave("output_files/Figure5e_stable_pathogenic_CRX.pdf")
+
+#enrichment in basic residues
+fisher.test(cbind(c(5,5),c(12,44)))
+
+#plot loc enrichments
+ors<-data.table(class=c("stable_bint","stable_sshell","unstable_bint","unstable_sshell"),
+                or=c(6.33,1.65,1.64,1.65))
+
+ggplot(ors)+
+  geom_col(aes(x=or,y=class))
+ggsave("output_files/Figure5e_stable_pathogenic_CRX_ORs.pdf")
+
+mutated_domainome_gnomad[dom_ID=="O43186_PF00046_41",]
 
 ```
 
@@ -437,7 +713,7 @@ cor(summary_gnomad1e5$mcc_values,summary_gnomad1e5$auc_values)
 ```{r roc curves for top genes, esm}
 
 #load esm predictions and merge
-domainome_esm1v<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs.txt")[,c("aa_seq","mean_esm1v_prediction_fl","mean_esm1v_prediction")]
+domainome_esm1v<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")[,c("aa_seq","mean_esm1v_prediction_fl","mean_esm1v_prediction")]
 
 mutated_domainome_gnomad<-merge(mutated_domainome_gnomad,domainome_esm1v,
                                 by="aa_seq",all.x=TRUE)
@@ -543,16 +819,8 @@ for (domid in clinvars_per_domain[pathogenic>0,]$dom_ID){
 summary_esm1v<-data.table(doms,mcc_values,best_abundance_thrs,auc_values,wauc_values,stable_benign,destab_benign,stable_pathogenic,destab_pathogenic,gene_name,esm_pearson,
                           rep_pearson,esm_pearson_byrep,esm_spearman,rep_spearman,esm_spearman_byrep)
 
-summary_esm1v[,esm_variance_explained:=esm_pearson_byrep**2/rep_pearson**2]
-summary_esm1v[,esm_variance_explained_spearman:=esm_spearman_byrep**2/rep_spearman**2]
-
-summary_esm1v[esm_variance_explained>1,esm_variance_explained:=1]
-summary_esm1v[esm_variance_explained_spearman>1,esm_variance_explained_spearman:=1]
-
-
-ggplot(summary_esm1v)+
-  geom_point(aes(x=esm_variance_explained,y=esm_variance_explained_spearman))
-ggsave("output_files/ED_Figure_3b_parametric_vs_nonparametric_varexplained.pdf")
+summary_esm1v[,esm_variance_explained:=(esm_pearson/sqrt(rep_pearson))**2]
+summary_esm1v[,esm_variance_explained_spearman:=(esm_spearman/sqrt(rep_spearman))**2]
 
 cor(summary_esm1v$esm_variance_explained,summary_esm1v$esm_variance_explained_spearman)
 
@@ -571,7 +839,6 @@ summary_esm1v<-summary_esm1v[order(mcc_values,decreasing = TRUE),]
 summary_gnomad1e5[,rank:=seq(nrow(summary_gnomad1e5))]
 summary_esm1v[,rank:=seq(nrow(summary_esm1v))]
   
-
 summary_esm1v[, c("PFAM_ID") := tstrsplit(doms, "_", fixed = TRUE)[2]]
 pfamid_description<-fread("analysis_files/pfam_ID_description_table.txt")
 summary_esm1v<-merge(summary_esm1v,pfamid_description,by="PFAM_ID")
@@ -580,33 +847,68 @@ summary_esm1v[,domain:=paste(description,gene_name)]
 summary_esm1v<-summary_esm1v[order(esm_variance_explained,decreasing = TRUE),]
 summary_esm1v[,rank_varexp:=seq(nrow(summary_esm1v))]
 
-modes_of_inheritance<-fread("analysis_files/modes_of_inheritance.csv")
-colnames(modes_of_inheritance)<-c("domain","moi","mechanism")
+modes_of_inheritance<-fread("analysis_files/modes_of_inheritance_mech.csv")
+colnames(modes_of_inheritance)<-c("domain","moi","mechanism","source","comment")
 modes_of_inheritance<-modes_of_inheritance[!duplicated(modes_of_inheritance)]
-summary_esm1v_moi<-merge(summary_esm1v,modes_of_inheritance,
-                         by="domain",all.x = TRUE)
+summary_esm1v_moi<-merge(summary_esm1v,modes_of_inheritance,by="domain",all.x = TRUE)
 
 summary_esm1v_moi<-summary_esm1v_moi[order(esm_variance_explained,decreasing = TRUE),]
 summary_esm1v_moi[,rank_varexp:=seq(nrow(summary_esm1v_moi))]
 
+#moi simple
 summary_esm1v_moi[moi %in% c("AD","XLD"),moi_simple:="dominant"]
 summary_esm1v_moi[moi %in% c("AR","XLR"),moi_simple:="recessive"]
 summary_esm1v_moi[moi %in% c("AD-AR"),moi_simple:="mixed"]
 summary_esm1v_moi[moi %in% c("","XL"),moi_simple:="unknown"]
 
-summary_esm1v_moi$moi_simple<-factor(summary_esm1v_moi$moi_simple,
-                                     levels=c("recessive","mixed","dominant","unknown"))
+summary_esm1v_moi$moi_simple<-factor(summary_esm1v_moi$moi_simple,levels=c("recessive","mixed","dominant","unknown"))
+
+median(summary_esm1v_moi[moi_simple=="recessive",]$esm_variance_explained)
+median(summary_esm1v_moi[moi_simple=="dominant",]$esm_variance_explained)
 
 ggplot(summary_esm1v_moi)+
-  geom_boxplot(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),outlier.shape=NA)+
-  geom_jitter(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),size=0.75)+
-  scale_fill_manual(values=c("salmon","purple","lightblue","darkgrey"))+
-  theme_classic()
-ggsave("output_files/Figure_4e_varexplained_by_moi.pdf",width=5,height = 4)
+geom_boxplot(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),outlier.shape=NA)+
+geom_jitter(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),size=0.75)+
+scale_fill_manual(values=c("salmon","purple","lightblue","darkgrey"))+
+theme_classic()
+ggsave("output_files/Figure5g_varexplained_by_moi.pdf",width=5,height = 4)
+
+wilcox.test(summary_esm1v_moi[moi_simple=="dominant",]$esm_variance_explained,
+            summary_esm1v_moi[moi_simple=="recessive",]$esm_variance_explained)
+
+#moi and mechanism
+summary_esm1v_moi[moi %in% c("AD","XLD") & mechanism=="aggregation",moi_mech:="dominant - aggregation"]
+summary_esm1v_moi[moi %in% c("AD","XLD") & mechanism=="lof",moi_mech:="dominant - lof"]
+summary_esm1v_moi[moi %in% c("AD","XLD","AD-AR") & mechanism %in% c("gof","dominant negative"),moi_mech:="dominant - altered function"]
+summary_esm1v_moi[moi %in% c("AD","XLD","AD-AR") & mechanism %in% c("mixed"),moi_mech:="dominant - mixed lof and altered function"]
+summary_esm1v_moi[moi %in% c("AR","XLR"),moi_mech:="recessive"]
+summary_esm1v_moi[moi %in% c("","XL"),moi_mech:="unknown"]
+summary_esm1v_moi[is.na(moi_mech),moi_mech:="unknown"]
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(x=moi_mech,y=esm_variance_explained,fill=moi_mech),outlier.shape=NA)+
+  geom_jitter(aes(x=moi_mech,y=esm_variance_explained,fill=moi_mech),size=0.75)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#mechanism only
+summary_esm1v_moi[is.na(mechanism),mech:="unknown"]
+summary_esm1v_moi[moi %in% c("AD","XLD") & mechanism=="aggregation",mech:="aggregation"]
+summary_esm1v_moi[moi %in% c("AD","XLD") & mechanism=="lof",mech:="lof"]
+summary_esm1v_moi[moi %in% c("AD","XLD","AD-AR") & mechanism %in% c("gof","dominant negative"),mech:="altered function"]
+summary_esm1v_moi[moi %in% c("AD","XLD","AD-AR") & mechanism %in% c("mixed"),mech:="mixed lof and altered function"]
+summary_esm1v_moi[moi %in% c("AR","XLR"),mech:="lof"]
+summary_esm1v_moi[moi %in% c("","XL"),mech:="unknown"]
+summary_esm1v_moi[is.na(mech),mech:="unknown"]
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(x=mech,y=esm_variance_explained,fill=mech),outlier.shape=NA)+
+  geom_jitter(aes(x=mech,y=esm_variance_explained,fill=mech),size=0.375)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ggsave("output_files/Figure5h_varexplained_by_mech.pdf",width=5,height = 4)
 
 summary_merged<-merge(summary_gnomad1e5,summary_esm1v,by="doms",all.x = TRUE)
-
-
 
 #plot correlation for domains with 20 or more variants
 library(ggrepel)
@@ -619,13 +921,27 @@ ggplot(summary_merged[(stable_pathogenic.x+destab_pathogenic.x+stable_benign.x+d
     stat_cor()+
     xlab("MCC clinical variants")+
     ylab("esm variance explained")
-ggsave("output_files/Figure_4d_correlation_mcc_clinical_to_esm_explainablevar.pdf",height=3,width=4)
+ggsave("output_files/Figure_5f_correlation_mcc_clinical_to_esm_explainablevar.pdf",height=3,width=4)
+
+
+#plot correlation for domains with 20 or more variants - with MCC errors
+ggplot(summary_merged[(stable_pathogenic.x+destab_pathogenic.x+stable_benign.x+destab_benign.x)>=20 & (stable_pathogenic.x+destab_pathogenic.x)>1 & (stable_benign.x+destab_benign.x)>1 & esm_variance_explained<1,],aes(x=mcc_values.x,y=esm_variance_explained))+
+    geom_point()+
+    geom_errorbar(aes(xmin=mcc_values.x-mcc_values_sampled_sigma,
+                      xmax=mcc_values.x+mcc_values_sampled_sigma,))+
+    geom_smooth(method = "lm",se=FALSE)+
+    geom_text_repel(aes(label=gene_name.x))+
+    theme_classic()+
+    stat_cor()+
+    xlab("MCC clinical variants")+
+    ylab("esm variance explained")
+ggsave("output_files/Figure_5f_correlation_mcc_clinical_to_esmvarexplained_errors.pdf",height=3,width=4)
 
 
 #plot ranked heatmap of all domains
 
 summary_esm1v_moi<-summary_esm1v_moi[order(esm_variance_explained,decreasing = FALSE),]
-summary_esm1v_moi[,rank_varexp:=seq(nrow(summary_esm1v))]
+summary_esm1v_moi[,rank_varexp:=seq(nrow(summary_esm1v_moi))]
 
 ggplot(summary_esm1v_moi)+
     geom_tile(aes(y=factor(rank_varexp),x=1,fill=esm_variance_explained))+
@@ -635,8 +951,7 @@ ggplot(summary_esm1v_moi)+
     theme_classic()+
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
     scale_fill_gradient2(low="red",mid="grey80",high="blue",midpoint=0.5)
-
-ggsave("output_files/Figure_4f_ranked_domains_by_esm1v_varexplained_moi_heatmap.pdf",width=13,height = 7)
+ggsave("output_files/ED_Figure5f_ranked_domains_by_esm1v_varexplained_moi_heatmap.pdf",width=13,height = 7)
  
 
 ggplot(summary_esm1v_moi)+
@@ -647,11 +962,86 @@ ggplot(summary_esm1v_moi)+
     theme_classic()+
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
     scale_fill_manual(values=c("salmon","purple","lightblue","darkgrey"))
-
-ggsave("output_files/Figure_4f_ranked_domains_by_esm1v_varexplained_moi_heatmap_classes.pdf",width=13,height = 7)
+ggsave("output_files/ED_Figure5f_ranked_domains_by_esm1v_varexplained_moi_heatmap_classes.pdf",width=13,height = 7)
  
 
-summary_esm1v_moi[,.(median=median(esm_variance_explained)),by="moi_simple"]
+#control for fraction of core and surface residues in domains
+mutated_domainome_VEPs<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")
+domain_corepercent<-mutated_domainome_VEPs[mut_aa != "*",.(core_percent = 100*length(which(rsasa_all<25))/length(rsasa_all)),by="dom_ID"]
+
+summary_esm1v_moi<-merge(summary_esm1v_moi,domain_corepercent,by.x = "doms", by.y="dom_ID",all.x=TRUE)
+
+ggplot(summary_esm1v_moi)+
+  geom_point(aes(y=esm_variance_explained,x=core_percent))
+ggsave("output_files/corepercent_vs_esmvarexplained.pdf")
+
+cor(summary_esm1v_moi$esm_variance_explained,
+    summary_esm1v_moi$core_percent)
+
+fit<-lm(esm_variance_explained ~ moi_simple,
+   data=summary_esm1v_moi)
+summary(fit)
+
+fit_core<-lm(esm_variance_explained ~ moi_simple + core_percent,
+   data=summary_esm1v_moi)
+summary(fit_core)
+
+fit_coreonly<-lm(esm_variance_explained ~  core_percent,
+   data=summary_esm1v_moi)
+summary(fit_coreonly)
+
+
+#analyses adjusted by %core residues
+summary_esm1v_moi$esm_variance_explained_residcore<-fit_coreonly$residuals
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(y=esm_variance_explained_residcore,x=moi_simple))+
+  geom_jitter(aes(y=esm_variance_explained_residcore,x=moi_simple),height = 0)
+ggsave("output_files/moisimple_coreadjusted.pdf")
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(y=esm_variance_explained_residcore,x=mech))+
+  geom_jitter(aes(y=esm_variance_explained_residcore,x=mech),height = 0)
+ggsave("4_output_files/mech_coreadjusted.pdf")
+
+
+#analyses adjusted by %core residues and scop class
+scop_classes<-fread("analysis_files/PFAM_ID_to_SCOP_class.tsv")
+summary_esm1v_moi<-merge(summary_esm1v_moi,scop_classes,by="PFAM_ID",all.x = TRUE)
+
+fit_core_and_scop<-lm(esm_variance_explained ~  core_percent + scop_class,
+   data=summary_esm1v_moi)
+summary(fit_core_and_scop)
+
+summary_esm1v_moi$esm_variance_explained_residcorescop<-fit_core_and_scop$residuals
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(y=esm_variance_explained_residcorescop,x=moi_simple))+
+  geom_jitter(aes(y=esm_variance_explained_residcorescop,x=moi_simple),height = 0)
+ggsave("output_files/ED_Figure5e_moisimple_core_scop_adjusted.pdf")
+
+ggplot(summary_esm1v_moi)+
+  geom_boxplot(aes(y=esm_variance_explained_residcorescop,x=mech))+
+  geom_jitter(aes(y=esm_variance_explained_residcorescop,x=mech),height = 0)
+ggsave("output_files/ED_Figure5e_mech_core_scop_adjusted.pdf")
+
+
+#compare esm variance explained using our stability data vs thermoMPNN
+domainome_thermoMPNN<-fread("analysis_files/mutated_domainome_merged_filtered_all_VEPs_final.txt")[,c("aa_seq","thermoMPNN_ddG")]
+
+mutated_domainome_gnomad_thermoMPNN<-data.table(merge(mutated_domainome_gnomad,domainome_thermoMPNN,
+                                by="aa_seq",all.x=TRUE))
+
+fraction_fitness_thermoMPNN<-mutated_domainome_gnomad_thermoMPNN[,.(esm_varexp_thermo=cor(thermoMPNN_ddG,mean_esm1v_prediction_fl, use="pairwise.complete.obs")**2),by="dom_ID"]
+
+summary_esm1v_moi<-merge(summary_esm1v_moi,fraction_fitness_thermoMPNN,by.y="dom_ID",by.x="doms",all.x = TRUE)
+
+ggplot(summary_esm1v_moi[scop_class!="small proteins",])+
+  geom_point(aes(x=esm_variance_explained,y=esm_varexp_thermo))
+ggsave("output_files/ED_Figure3d_aPCAvarexp_vs_thermoMPNNvarexp.pdf")
+
+cor(summary_esm1v_moi$esm_varexp_thermo,summary_esm1v_moi$esm_variance_explained)
+cor(summary_esm1v_moi[scop_class!="small proteins",]$esm_varexp_thermo,summary_esm1v_moi[scop_class!="small proteins",]$esm_variance_explained)
 
 ```
 

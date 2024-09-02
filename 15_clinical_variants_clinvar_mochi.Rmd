@@ -11,7 +11,7 @@ library(data.table)
 library(stringr)
 library(viridis)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 #clinvar data

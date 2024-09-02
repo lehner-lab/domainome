@@ -10,7 +10,7 @@ library(data.table)
 library(ggplot2)
 library(stringr)
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 ranked_domains<-fread("analysis_files/domain_QC_summary_reproducibility_ranked.txt")
@@ -140,7 +140,8 @@ write.table(wt_recoded_mappings,
 
 #save mappings between pfam alignments] positions and fitted mochi weight positions
 pos_in_pfamaln_vs_pos_in_recodedseq<-data.table(pos_recoded=subset_family_aligned$aln_pos_domainome,
-                                pos_pfam=subset_family_aligned$aln_pos)
+                                pos_pfam=subset_family_aligned$aln_pos,
+                                pos_pfam_original=subset_family_aligned$aln_pos_original)
 pos_in_pfamaln_vs_pos_in_recodedseq[,PFAM_ID:=family]
 
 pfam_alnpos_to_mochi_pos<-rbind(pfam_alnpos_to_mochi_pos,pos_in_pfamaln_vs_pos_in_recodedseq)

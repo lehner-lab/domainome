@@ -1,0 +1,97 @@
+---
+title: "homolog models - inferred weight correlations"
+output: html_document
+date: "2024-07-15"
+---
+
+
+
+```{r cars}
+
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(viridis)
+library(ggpubr)
+library(GGally)
+
+setwd("/path/to/your/files")
+
+
+#load weights and plot correlations
+pfamids<-fread("analysis_files/homolog_mochi_input_files/PFAM_IDs",header=FALSE)$V1  
+
+read_weights_and_plot<-function(family,fit_type,trait){
+
+weights<-fread(paste("analysis_files/homolog_mochi_input_files/",paste(paste(family,fit_type,sep="_"),paste("/weights/weights",trait,sep="_"),".txt",sep=""),sep=""))
+weights[,mut_aa:=substr(id,nchar(id),nchar(id))]
+weights[id=="WT",mut_aa:=NA]
+weights$mut_aa<-factor(weights$mut_aa,
+                       levels=str_split("QNSTDEKRHGPCMAILVFYW","")[[1]])
+
+features<-fread(paste("analysis_files/homolog_mochi_input_files/",paste(family,"_features_solu.txt",sep=""),sep = ""))
+wt_weights<-features[SoluWeight!="",]$Folding
+mut_weights<-weights[!is.na(`mean_kcal/mol`) & !(id %in% wt_weights),]
+
+mut_weights[,family:=family]
+mut_weights[,fit_type:=fit_type]
+mut_weights[,trait:=trait]
+
+return(mut_weights[,c("id","mean_kcal/mol","family","fit_type","trait")])
+
+}
+
+
+#folding (boltzmann) vs folding and solubility models
+all_weights_folding<-data.frame()
+all_weights_solu<-data.frame()
+
+#Boltzmann fits
+#2-state folding model
+for (pfamid in pfamids){
+  all_weights_folding<-rbind(all_weights_folding,read_weights_and_plot(pfamid,"folding","Folding"))
+  }
+
+#2-state folding model with an additional linear transform per domain
+for (pfamid in pfamids){
+  all_weights_solu<-rbind(all_weights_solu,read_weights_and_plot(pfamid,"folding_solu","Folding"))
+  }
+
+
+merged<-merge(all_weights_folding,all_weights_solu,by=c("id","family","trait"))
+
+cor<-merged[,.(weight_cor_pearson=cor(`mean_kcal/mol.x`,`mean_kcal/mol.y`,use="pairwise.complete.obs"),
+               weight_cor_spearman=cor(`mean_kcal/mol.x`,`mean_kcal/mol.y`,use="pairwise.complete.obs",method="spearman")),by="family"]
+median(cor$weight_cor_spearman)
+min(cor$weight_cor_spearman)
+
+ggplot(merged)+
+  geom_hex(aes(x=`mean_kcal/mol.x`,y=`mean_kcal/mol.y`))+
+  facet_wrap(~family,scales="free")+
+  xlab("model weights folding")+
+  ylab("model weights folding + solubility")
+
+
+#folding (boltzmann) model vs linear
+all_weights_linear<-data.frame()
+for (pfamid in pfamids){
+  all_weights_linear<-rbind(all_weights_linear,read_weights_and_plot(pfamid,"folding_linear","Folding"))
+}
+  
+merged<-merge(all_weights_folding,all_weights_linear,by=c("id","family","trait"))
+
+cor<-merged[,.(weight_cor_pearson=cor(`mean_kcal/mol.x`,`mean_kcal/mol.y`,use="pairwise.complete.obs"),
+               weight_cor_spearman=cor(`mean_kcal/mol.x`,`mean_kcal/mol.y`,use="pairwise.complete.obs",method="spearman")),by="family"]
+median(cor$weight_cor_spearman)
+max(cor$weight_cor_spearman)
+
+ggplot(merged)+
+  geom_hex(aes(x=`mean_kcal/mol.x`,y=`mean_kcal/mol.y`))+
+  facet_wrap(~family,scales="free")+
+  xlab("model weights folding (Boltzmann)")+
+  ylab("model weights linear")
+
+
+
+```
+

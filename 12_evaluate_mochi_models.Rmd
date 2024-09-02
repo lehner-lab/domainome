@@ -15,7 +15,7 @@ library(GGally)
 
 theme_set(theme_classic())
 
-base_dir=""
+base_dir="/path/to/your/files"
 setwd(base_dir)
 
 #folding weights, 2-state model
@@ -50,7 +50,7 @@ p<-ggplot(mut_weights)+
                        low="blue",mid="white",high = "red",midpoint=0)+
   ggtitle(paste(family,fit_type,sep = "_"))
 
-if (save){ggsave(paste("output_files/Figure_6g_",family,"_",fit_type,"_weight_heatmap.pdf",sep=""),height = 6, width=10)}else{
+if (save){ggsave(paste("output_files/Figure6e_",family,"_",fit_type,"_weight_heatmap.pdf",sep=""),height = 6, width=10)}else{
 
 print(p)
 mut_weights[,family:=family]
@@ -83,7 +83,7 @@ read_weights_and_plot("PF00046","folding",save=TRUE)
 
 ```{r weight correlations, fig.height=10, fig.width=10}
 
-all_weights_wide<-dcast(all_weights, ... ~ fit_type, value.var="mean_kcalmol_scaled")
+all_weights_wide<-data.table(dcast(all_weights, ... ~ fit_type, value.var="mean_kcalmol_scaled"))
 
 for (pfamid in pfamids){
   print(ggpairs(all_weights_wide[family==pfamid,], columns = 5:7)+
@@ -171,7 +171,7 @@ ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
   stat_cor(aes(x=predicted,y=fitness,label = ..r.label..),size=2)+
   theme_classic()+
   theme(text=element_text(size=8))
-ggsave("output_files/Figure_6c_obs_vs_predicted_homeodomains_boltzmann.pdf",height=3,width = 4)
+ggsave("output_files/Figure6c_obs_vs_predicted_homeodomains_boltzmann.pdf",height=3,width = 4)
 
 
 
@@ -189,7 +189,7 @@ ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
   theme_classic()+
   theme(text=element_text(size=8))+
   coord_cartesian(xlim = c(-3,5))
-ggsave("output_files/Figure_6b_fitness_vs_additive_trait_homeodomains_boltzmann.pdf",height=3,width = 4)
+ggsave("output_files/Figure6b_fitness_vs_additive_trait_homeodomains_boltzmann.pdf",height=3,width = 4)
 
 
 #plot evaluation metrics
@@ -201,8 +201,6 @@ median(summary_boltzmann_folding[N>5,]$R2)
 median(sqrt(summary_boltzmann_folding[N>5,]$R2))
 
 median(summary_boltzmann_folding[N>5,]$R2_pred/summary_boltzmann_folding[N>5,]$R2_rep)
-
-
 
 ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
   geom_point(aes(x=growthrate1,y=growthrate2))+
@@ -230,8 +228,6 @@ ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00397"])+
   stat_cor(aes(x=predicted,y=growthrate3))
 
 
-
-
 summary_boltzmann_folding$PFAM_ID<-factor(summary_boltzmann_folding$PFAM_ID,
                                           levels=summary_boltzmann_folding[order(R2,decreasing = TRUE),]$PFAM_ID)
 ggplot(summary_boltzmann_folding[N>5,])+
@@ -241,22 +237,37 @@ ggplot(summary_boltzmann_folding[N>5,])+
 ggsave("output_files/Figure_6i_byfamily_performance.pdf")
 
 
+foldseek_distances<-fread("analysis_files/pdb_files/foldseek_easy_allvsall_lddt")
+colnames(foldseek_distances)<-c("dom_1","dom_2","lddt","tmscore","tmscore_normq","tmscore_normt","prob")
+foldseek_distances[,fam1:=tstrsplit(dom_1,"_")[2]]
+foldseek_distances[,fam2:=tstrsplit(dom_2,"_")[2]]
 
+foldseek_distances_withinfam<-foldseek_distances[dom_1!=dom_2 & fam1==fam2,]
 
+average_tmscore_byfamily<-foldseek_distances_withinfam[,.(mean_tmscore=mean(tmscore_normq)),by="fam1"]
 
-summary_boltzmann_folding_bydomain<-predicted_vs_observed_merged[PFAM_ID %in% unique(summary_boltzmann_folding[N>5,]$PFAM_ID),.(R2=cor(predicted,fitness,use="pairwise.complete.obs")**2,
-                                                                    R2_pred=mean(c(cor(predicted,fitness1_uncorr,use="pairwise.complete.obs"),
-                                                                          cor(predicted,fitness2_uncorr,use="pairwise.complete.obs"),
-                                                                          cor(predicted,fitness3_uncorr,use="pairwise.complete.obs")))**2,
-                                                                    R2_rep=mean(c(cor(fitness1_uncorr,fitness2_uncorr,use="pairwise.complete.obs"),
-                                                                          cor(fitness1_uncorr,fitness3_uncorr,use="pairwise.complete.obs"),
-                                                                          cor(fitness2_uncorr,fitness3_uncorr,use="pairwise.complete.obs")))**2,
+summary_boltzmann_folding_avgtmscore<-merge(summary_boltzmann_folding,average_tmscore_byfamily,
+                                            by.x="PFAM_ID",by.y="fam1")
+
+cor(summary_boltzmann_folding_avgtmscore$R2_pred/summary_boltzmann_folding_avgtmscore$R2_rep,
+    summary_boltzmann_folding_avgtmscore$mean_tmscore)
+
+cor.test(summary_boltzmann_folding_avgtmscore$R2_pred/summary_boltzmann_folding_avgtmscore$R2_rep,
+    summary_boltzmann_folding_avgtmscore$mean_tmscore)
+
+summary_boltzmann_folding_bydomain<-predicted_vs_observed_merged[PFAM_ID %in% unique(summary_boltzmann_folding[N>9,]$PFAM_ID),.(R2=cor(predicted,fitness,use="pairwise.complete.obs")**2,
+                                                                    R2_pred=mean(c(cor(predicted,growthrate1,use="pairwise.complete.obs"),
+                                                                          cor(predicted,growthrate2,use="pairwise.complete.obs"),
+                                                                          cor(predicted,growthrate3,use="pairwise.complete.obs")))**2,
+                                                                    R2_rep=mean(c(cor(growthrate1,growthrate2,use="pairwise.complete.obs"),
+                                                                          cor(growthrate1,growthrate3,use="pairwise.complete.obs"),
+                                                                          cor(growthrate2,growthrate3,use="pairwise.complete.obs")))**2,
                                                                     PFAM_ID=unique(PFAM_ID)),by="dom_ID"]
 
 median(sqrt(summary_boltzmann_folding_bydomain$R2_rep))
+median(sqrt(summary_boltzmann_folding_bydomain$R2_pred))
 median(sqrt(summary_boltzmann_folding_bydomain$R2))
 
-median(summary_boltzmann_folding_bydomain$R2/summary_boltzmann_folding_bydomain$R2_rep)
 median(summary_boltzmann_folding_bydomain$R2_pred/summary_boltzmann_folding_bydomain$R2_rep)
 
 summary_boltzmann_folding_bydomain$fit<-rep("boltzmann 2-state",nrow(summary_boltzmann_folding_bydomain))
@@ -266,12 +277,12 @@ summary_boltzmann_folding_bydomain$fit<-rep("boltzmann 2-state",nrow(summary_bol
 
 ```{r all weight heatmaps, fig.height=10, fig.width=25}
 
-ggplot(all_weights[fit_type=="folding" & family %in% unique(summary_boltzmann_folding[N>5,]$PFAM_ID),])+
+ggplot(all_weights[fit_type=="folding" & family %in% unique(summary_boltzmann_folding[N>4,]$PFAM_ID),])+
   geom_tile(aes(x=Pos,y=mut_aa,fill=mean_kcalmol_scaled))+
   scale_fill_gradient2(limits=c(-1.5,1.5),
                        low="blue",mid="white",high = "red",midpoint=0)+
   facet_wrap(~family,scales = "free_x",ncol=5)
-ggsave("output_files/ED_Figure_7b_modelweights.pdf",height=11,width=18)
+ggsave("output_files/ED_Figure7b_modelweights.pdf",height=11,width=18)
 
 ```
 
