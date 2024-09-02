@@ -40,25 +40,29 @@ The R Markdown files contain the code to reproduce the figures and results from 
 R Markdown files are meant to be run in the following order:
 
 * **1. 00_merge_fitness_tables.Rmd**
-* **2. 01_QC_reproducibility_bydomain.Rmd**
-* **3. 02_validation.Rmd**
-* **4. 03_foldseek_distances_network.Rmd**
-* **5. 04_predictor_comparisons.Rmd**
-* **6. 05_clinical_variants_uniprot.Rmd**
-* **7. 06_clinical_variants_clinvar.Rmd**
-* **8. 07_clinical_variants_classification.Rmd**
-* **9. 08_wmean_fitness_on_structures.Rmd**
-* **10. 09_esm1v_residuals.Rmd**
-* **11. 10_esm1v_residuals_analysis.Rmd**
-* **12. 11_prepare_data_for_homolog_mochi.Rmd**
-* **13. 12_evaluate_mochi_models.Rmd**
-* **14. 13_left_out_domains.Rmd**
-* **15. 14_epistaticmutations_epistaticsites.Rmd**
-* **16. 15_clinical_variants_clinvar_mochi.Rmd**
-* **17. 16_clinical_variants_uniprot_mochi.Rmd**
-* **18. 17_gnomad_v4_variants_mochi.Rmd**
-* **19. 18_clinical_variants_merged_mochi.Rmd**
-* **20. 19_total_expansion_counts.Rmd**
+* **2. 00_totalnumbers_human_proteome.Rmd**
+* **3. 01_QC_reproducibility_bydomain.Rmd**
+* **4. 02_validation.Rmd**
+* **5. 03_foldseek_distances_network.Rmd**
+* **6. 04_predictor_comparisons.Rmd**
+* **7. 05_clinical_variants_uniprot.Rmd**
+* **8. 06_clinical_variants_clinvar.Rmd**
+* **9. 07_clinical_variants_classification.Rmd**
+* **10. 08_wmean_fitness_on_structures.Rmd**
+* **11. 09_esm1v_residuals.Rmd**
+* **12. 10_esm1v_residuals_analysis.Rmd**
+* **13. 11_prepare_data_for_homolog_mochi.Rmd**
+* **14. 12_evaluate_mochi_models.Rmd**
+* **15. 13_left_out_domains.Rmd**
+* **16. 14_epistaticmutations_epistaticsites.Rmd**
+* **17. 15_clinical_variants_clinvar_mochi.Rmd**
+* **18. 16_clinical_variants_uniprot_mochi.Rmd**
+* **19. 17_gnomad_v4_variants_mochi.Rmd**
+* **20. 18_clinical_variants_merged_mochi.Rmd**
+* **21. 19_total_expansion_counts.Rmd**
+* **22. 20_homolog_model_weight_correlations.Rmd**
+* **23. 21_minimum_distance_pairs.Rmd**
+* **24. 22_mochi_homologmodels_evaluation.Rmd**
 
 # Additional scripts and software
 
