@@ -144,7 +144,7 @@ for (dom in leftout_list$wt_out){
   
 }
 
-performance_on_leftout_doms<-data.table(doms,pearson_r_obs_vs_predicted,spearman_r_obs_vs_predicted,n,rep_pearson_r,rep_spearman_r,pearson_r_obs_vs_predicted_byrep,spearman_r_obs_vs_predicted_byrep,mpnn_pearson_r,mpnn_spearman_r,fev)
+performance_on_leftout_doms<-data.table(doms,pearson_r_obs_vs_predicted,spearman_r_obs_vs_predicted,n,rep_pearson_r,rep_spearman_r,pearson_r_obs_vs_predicted_byrep,spearman_r_obs_vs_predicted_byrep,mpnn_pearson_r,mpnn_spearman_r)
 performance_on_leftout_doms_geneticdistance<-merge(performance_on_leftout_doms,genetic_distances,by="doms")
 
 performance_on_leftout_doms_geneticdistance[,PFAM_ID:=family]
