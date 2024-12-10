@@ -63,7 +63,7 @@ ggplot(esm1v_residuals_all_mutations)+
   geom_density(aes(x=esm1v_residuals_sigfit_grsq,col=funsite))+
   coord_cartesian(xlim=c(-1,2))+
   theme_classic()
-ggsave("output_files/Figure4d_functional_sites_residuals.pdf")
+ggsave("output_files/Figure3g_functional_sites_residuals.pdf")
 
 table(esm1v_residuals_all_mutations$funsite)
 
@@ -80,7 +80,7 @@ ggplot(esm1v_residuals_all_mutations_merged[cdd_description %in% site_types_with
   geom_vline(aes(xintercept=0),col="red")+
   facet_wrap(~cdd_description,scales = "free_y")+
   xlab("residuals aPCA to esm1v")
-ggsave("output_files/ED_Figure4b_residuals_by_cdd_description.pdf")
+ggsave("output_files/ED_Figure3b_residuals_by_cdd_description.pdf")
 
 
 #merge tables, will contain duplicated sites that have more than 1 functional annotation
@@ -140,7 +140,7 @@ esm1v_residuals_all_mutations_merged_bypos<-esm1v_residuals_all_mutations_merged
 ggplot(esm1v_residuals_all_mutations_merged_bypos)+
   geom_density(aes(x=merged_esm1v_residual,col=funsite))+
   theme_classic()
-ggsave("output_files/Figure4e_functional_sites_residuals_wmean.pdf")
+ggsave("output_files/Figure3h_functional_sites_residuals_wmean.pdf")
 
 
 #overall enrichments
@@ -195,14 +195,14 @@ cont_table_bysite_dt_fdr0.1$cdd_description<-factor(cont_table_bysite_dt_fdr0.1$
 ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
   geom_col(aes(y=cdd_description,x=log2(OR)))+
   theme_classic()
-ggsave("output_files/Figure4f_oddsratios_by_cdd_description.pdf")
+ggsave("output_files/Figure3i_oddsratios_by_cdd_description.pdf")
 
 
 ggplot(cont_table_bysite_dt_fdr0.1[order(OR,decreasing = TRUE),])+
   geom_point(aes(y=cdd_description,x=log2(OR)),size=3,col="blue")+
   geom_errorbar(aes(y=cdd_description,x=log2(OR),xmin=log2(confint_lower),xmax=log2(confint_upper)))+
   theme_classic()
-ggsave("output_files/Figure4f_oddsratios_by_cdd_description_errorbars.pdf")
+ggsave("output_files/Figure3i_oddsratios_by_cdd_description_errorbars.pdf")
 
 
 #aggregate by cdd_ID_description
@@ -278,7 +278,7 @@ ggplot()+
                aes(x=merged_esm1v_residual,col="non-funsite"))+
   geom_density(data=esm1v_residuals_all_mutations_merged_bypos_doms_funsites[sshell_scHA=="yes",],
                aes(x=merged_esm1v_residual,col="second shell"))
-ggsave("output_files/ED_Figure4c_functional_sites_residuals_secondshell.pdf")
+ggsave("output_files/ED_Figure3c_functional_sites_residuals_secondshell.pdf")
 
 
 #per residue minimum distance to an annotated functional site

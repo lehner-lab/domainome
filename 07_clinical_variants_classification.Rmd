@@ -120,7 +120,7 @@ ggplot(summary_proportions)+
   geom_col(aes(y=clinical_class,x=proportion,fill=destabilizing))+
   theme_classic()+
   scale_fill_manual(values=c("#ED1C24","#8A96CB","#294599"))
-ggsave("output_files/Figure_5b_destabilization_vs_pathogenicity_proportions_allvariants.pdf",height=3,width=5)
+ggsave("output_files/Figure_4b_destabilization_vs_pathogenicity_proportions_allvariants.pdf",height=3,width=5)
 
 
 #variant count distributions
@@ -140,7 +140,7 @@ ggplot(pathogenic_vars_per_domain_cumsum)+
   geom_line(aes(x=rank/max(rank)*100,y=cumsum/max(cumsum)*100))+
   ylab("number of pathogenic variants")+
   xlab("rank")
-ggsave("output_files/ED_Figure_5a_pathogenic_variant_giniplot_percentage.pdf")
+ggsave("output_files/ED_Figure_4a_pathogenic_variant_giniplot_percentage.pdf")
 
 
 benign_vars_per_domain<-data.frame(table(table(mutated_domainome_missense[clinical_class=="Benign" & !is.na(scaled_gr)]$dom_ID)[order(table(mutated_domainome_missense[clinical_class=="Benign"]$dom_ID),decreasing=TRUE)]))
@@ -232,7 +232,7 @@ ggplot()+
   geom_density(data=mutated_domainome_gnomad[af>1e-5,],aes(x=scaled_gr,col=gnomad_variants_1e5))+
   scale_color_manual(values=c("#294599","#A0ACD7","#ED1C24","grey"))+
   theme_classic()
-ggsave("output_files/Figure5a_aPCA_vs_pathogenicity_density.pdf")
+ggsave("output_files/Figure4a_aPCA_vs_pathogenicity_density.pdf")
 
 table(mutated_domainome_gnomad$gnomad_variants)
 table(mutated_domainome_gnomad$gnomad_variants_1e5)
@@ -324,7 +324,7 @@ toplot$PFAM_ID<-factor(toplot$PFAM_ID,
 
 ggplot(toplot)+
   geom_col(aes(y=PFAM_ID,x=proportions,fill=stabclass,group=clinicalclass),dodge=TRUE)
-ggsave("output_files/Figure_5a_ED_Figure_5b_destab_proportions_by_family.pdf")
+ggsave("output_files/Figure_4a_ED_Figure_4b_destab_proportions_by_family.pdf")
 
 
 
@@ -352,7 +352,7 @@ mutated_domainome_gnomad_toclassify_clinical<-merge(mutated_domainome_gnomad_toc
 mutated_domainome_gnomad_toclassify_clinical_noNA<-mutated_domainome_gnomad_toclassify_clinical[!is.na(scaled_gr) & !is.na(AlphaMissense_fitness) & !is.na(mean_esm1v_prediction_fl) & !is.na(popEVE_new) & !is.na(foldx_ddg) & !is.na(thermoMPNN_ddG),]
 
 
-pdf("output_files/ED_Figure5c_patho_vs_benign_roccurves_predictorcomparisons_leftoutdata.pdf")
+pdf("output_files/ED_Figure4c_patho_vs_benign_roccurves_predictorcomparisons_leftoutdata.pdf")
 plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
 mutated_domainome_gnomad_toclassify_clinical_noNA$mean_esm1v_prediction_fl),col="orange",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.7)
 plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
@@ -381,7 +381,7 @@ esm1v_and_aPCA<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,for
 esm1v_aPCA_and_features<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
 features_alone<-glm(data = mutated_domainome_gnomad_toclassify_clinical_noNA,formula = clinical_class_roc ~ wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
 
-pdf("output_files/ED_Figure5d_roccurve_combinations_all.pdf")
+pdf("output_files/ED_Figure4d_roccurve_combinations_all.pdf")
 plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
 predict(aPCA_alone)),col="lightblue",print.auc=TRUE,print.auc.x=0.4,print.auc.y=0.5)
 plot(roc(mutated_domainome_gnomad_toclassify_clinical_noNA$clinical_class_roc,
@@ -416,7 +416,7 @@ esm1v_and_aPCA<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr 
 esm1v_aPCA_and_features<-glm(data = train_split,formula = clinical_class_roc ~ scaled_gr + mean_esm1v_prediction_fl + wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
 features_alone<-glm(data = train_split, formula = clinical_class_roc ~ wt_aa + mut_aa + rsasa_all + secondary_structure_code,family = "binomial")
 
-pdf("output_files/ED_Figure5d_roccurve_combinations_leftoutdata.pdf")
+pdf("output_files/ED_Figure4d_roccurve_combinations_leftoutdata.pdf")
 plot(roc(test_split$clinical_class_roc,
 predict(aPCA_alone,newdata = test_split)),col="lightblue",print.auc=TRUE,print.auc.x=0.4)
 plot(roc(test_split$clinical_class_roc,
@@ -486,7 +486,7 @@ if (nrow(subset_clinical[clinical_class_roc==0,])>0 & nrow(subset_clinical[clini
     ggtitle(domid)+
     coord_cartesian(xlim=c(-1.25,0.25))+
     theme_classic()
-    ggsave(paste("output_files/Figure_5c_",domid,"_stabdist_clinvars.pdf",sep=""),width=4,height=3)
+    ggsave(paste("output_files/Figure_4c_",domid,"_stabdist_clinvars.pdf",sep=""),width=4,height=3)
         
     ggplot()+
     geom_violin(data=subset[scaled_gr>(-1.5),],aes(y=scaled_gr,x="all"))+
@@ -499,7 +499,7 @@ if (nrow(subset_clinical[clinical_class_roc==0,])>0 & nrow(subset_clinical[clini
     geom_jitter(data=subset[gnomad_variants_1e5=="gnomad_1e-5" & clinical_class != "Pathogenic" & clinical_class != "Benign",],aes(y=scaled_gr,x="gnomad"),col="lightblue",size=2,height=0)+
     ggtitle(domid)+
     theme_classic()
-    ggsave(paste("output_files/Figure_5c_",domid,"_stabdist_clinvars_violins.pdf",sep=""),width=4,height=3)
+    ggsave(paste("output_files/Figure_4c_",domid,"_stabdist_clinvars_violins.pdf",sep=""),width=4,height=3)
     
     print(domid)
     print(nrow(subset[clinical_class=="Pathogenic" & destab=="true" & scaled_gr<(-0.3),])/nrow(subset[clinical_class=="Pathogenic",]))
@@ -625,7 +625,7 @@ library(reshape2)
 ggplot(data.table(melt(mecp2_counts))[variable=="stable",])+
   geom_col(aes(y=loc_class,x=value,fill=loc_class))+
   scale_fill_manual(values=c("red","salmon","beige"))
-ggsave("output_files/ED_Figure5d_stable_pathogenic_MECP2.pdf")
+ggsave("output_files/ED_Figure4d_stable_pathogenic_MECP2.pdf")
 
 #enrichment in basic residues
 fisher.test(cbind(c(8,9),c(12,60)))
@@ -636,7 +636,7 @@ ors<-data.table(class=c("stable_bint","stable_sshell","unstable_bint","unstable_
 
 ggplot(ors)+
   geom_col(aes(x=or,y=class))
-ggsave("output_files/ED_Figure5d_stable_pathogenic_MECP2_ORs.pdf")
+ggsave("output_files/ED_Figure4d_stable_pathogenic_MECP2_ORs.pdf")
 
 
 
@@ -689,7 +689,7 @@ crx_counts$loc_class<-factor(crx_counts$loc_class,
 ggplot(data.table(melt(crx_counts))[variable=="stable",])+
   geom_col(aes(y=loc_class,x=value,fill=loc_class))+
   scale_fill_manual(values=c("red","salmon","beige"))
-ggsave("output_files/Figure5e_stable_pathogenic_CRX.pdf")
+ggsave("output_files/Figure4e_stable_pathogenic_CRX.pdf")
 
 #enrichment in basic residues
 fisher.test(cbind(c(5,5),c(12,44)))
@@ -700,7 +700,7 @@ ors<-data.table(class=c("stable_bint","stable_sshell","unstable_bint","unstable_
 
 ggplot(ors)+
   geom_col(aes(x=or,y=class))
-ggsave("output_files/Figure5e_stable_pathogenic_CRX_ORs.pdf")
+ggsave("output_files/Figure4e_stable_pathogenic_CRX_ORs.pdf")
 
 mutated_domainome_gnomad[dom_ID=="O43186_PF00046_41",]
 
@@ -871,7 +871,7 @@ geom_boxplot(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),outlier.
 geom_jitter(aes(x=moi_simple,y=esm_variance_explained,fill=moi_simple),size=0.75)+
 scale_fill_manual(values=c("salmon","purple","lightblue","darkgrey"))+
 theme_classic()
-ggsave("output_files/Figure5g_varexplained_by_moi.pdf",width=5,height = 4)
+ggsave("output_files/Figure4g_varexplained_by_moi.pdf",width=5,height = 4)
 
 wilcox.test(summary_esm1v_moi[moi_simple=="dominant",]$esm_variance_explained,
             summary_esm1v_moi[moi_simple=="recessive",]$esm_variance_explained)
@@ -906,7 +906,7 @@ ggplot(summary_esm1v_moi)+
   geom_jitter(aes(x=mech,y=esm_variance_explained,fill=mech),size=0.375)+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-ggsave("output_files/Figure5h_varexplained_by_mech.pdf",width=5,height = 4)
+ggsave("output_files/Figure4g_varexplained_by_mech.pdf",width=5,height = 4)
 
 summary_merged<-merge(summary_gnomad1e5,summary_esm1v,by="doms",all.x = TRUE)
 
@@ -921,7 +921,7 @@ ggplot(summary_merged[(stable_pathogenic.x+destab_pathogenic.x+stable_benign.x+d
     stat_cor()+
     xlab("MCC clinical variants")+
     ylab("esm variance explained")
-ggsave("output_files/Figure_5f_correlation_mcc_clinical_to_esm_explainablevar.pdf",height=3,width=4)
+ggsave("output_files/Figure_4f_correlation_mcc_clinical_to_esm_explainablevar.pdf",height=3,width=4)
 
 
 #plot correlation for domains with 20 or more variants - with MCC errors
@@ -935,7 +935,7 @@ ggplot(summary_merged[(stable_pathogenic.x+destab_pathogenic.x+stable_benign.x+d
     stat_cor()+
     xlab("MCC clinical variants")+
     ylab("esm variance explained")
-ggsave("output_files/Figure_5f_correlation_mcc_clinical_to_esmvarexplained_errors.pdf",height=3,width=4)
+ggsave("output_files/Figure_4f_correlation_mcc_clinical_to_esmvarexplained_errors.pdf",height=3,width=4)
 
 
 #plot ranked heatmap of all domains
@@ -951,7 +951,7 @@ ggplot(summary_esm1v_moi)+
     theme_classic()+
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
     scale_fill_gradient2(low="red",mid="grey80",high="blue",midpoint=0.5)
-ggsave("output_files/ED_Figure5f_ranked_domains_by_esm1v_varexplained_moi_heatmap.pdf",width=13,height = 7)
+ggsave("output_files/ED_Figure4f_ranked_domains_by_esm1v_varexplained_moi_heatmap.pdf",width=13,height = 7)
  
 
 ggplot(summary_esm1v_moi)+
@@ -962,7 +962,7 @@ ggplot(summary_esm1v_moi)+
     theme_classic()+
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
     scale_fill_manual(values=c("salmon","purple","lightblue","darkgrey"))
-ggsave("output_files/ED_Figure5f_ranked_domains_by_esm1v_varexplained_moi_heatmap_classes.pdf",width=13,height = 7)
+ggsave("output_files/ED_Figure4f_ranked_domains_by_esm1v_varexplained_moi_heatmap_classes.pdf",width=13,height = 7)
  
 
 #control for fraction of core and surface residues in domains
@@ -1018,12 +1018,12 @@ summary_esm1v_moi$esm_variance_explained_residcorescop<-fit_core_and_scop$residu
 ggplot(summary_esm1v_moi)+
   geom_boxplot(aes(y=esm_variance_explained_residcorescop,x=moi_simple))+
   geom_jitter(aes(y=esm_variance_explained_residcorescop,x=moi_simple),height = 0)
-ggsave("output_files/ED_Figure5e_moisimple_core_scop_adjusted.pdf")
+ggsave("output_files/ED_Figure4e_moisimple_core_scop_adjusted.pdf")
 
 ggplot(summary_esm1v_moi)+
   geom_boxplot(aes(y=esm_variance_explained_residcorescop,x=mech))+
   geom_jitter(aes(y=esm_variance_explained_residcorescop,x=mech),height = 0)
-ggsave("output_files/ED_Figure5e_mech_core_scop_adjusted.pdf")
+ggsave("output_files/ED_Figure4e_mech_core_scop_adjusted.pdf")
 
 
 #compare esm variance explained using our stability data vs thermoMPNN
@@ -1038,7 +1038,7 @@ summary_esm1v_moi<-merge(summary_esm1v_moi,fraction_fitness_thermoMPNN,by.y="dom
 
 ggplot(summary_esm1v_moi[scop_class!="small proteins",])+
   geom_point(aes(x=esm_variance_explained,y=esm_varexp_thermo))
-ggsave("output_files/ED_Figure3d_aPCAvarexp_vs_thermoMPNNvarexp.pdf")
+ggsave("output_files/ED_Figure2d_aPCAvarexp_vs_thermoMPNNvarexp.pdf")
 
 cor(summary_esm1v_moi$esm_varexp_thermo,summary_esm1v_moi$esm_variance_explained)
 cor(summary_esm1v_moi[scop_class!="small proteins",]$esm_varexp_thermo,summary_esm1v_moi[scop_class!="small proteins",]$esm_variance_explained)

@@ -133,7 +133,7 @@ ggplot(merged_counts)+
   geom_col(aes(y=PFAM_ID,fill=measured,x=N))+
   theme_classic()+
   xlab("number of pathogenic variants")
-ggsave("output_files/Figure7a_variant_count_expansion.pdf")
+ggsave("output_files/ED_Figure9a_variant_count_expansion.pdf")
 
 
 
@@ -170,7 +170,7 @@ destab_class_proportions$V2<-factor(destab_class_proportions$V2,
 ggplot(destab_class_proportions)+
   geom_col(aes(x=V1,fill=V2,y=N))+
   theme_classic()
-ggsave("output_files/Figure7c_mochi_destab_variant_clinical_proportions.pdf")
+ggsave("output_files/ED_Figure9e_mochi_destab_variant_clinical_proportions.pdf")
 
 
 #keep only domains with pathogenic variants
@@ -217,7 +217,7 @@ ggplot(clinical_variants_mochiweights[!is.na(class),])+
   geom_density(aes(x=mean_kcalmol_scaled,col=class),bw=0.075)+
   coord_cartesian(xlim=c(-1,1.5))+
   theme_classic()
-ggsave("output_files/Figure7b_mochi_clinicalvariants_gnomad_density.pdf")
+ggsave("output_files/ED_Figure9d_mochi_clinicalvariants_gnomad_density.pdf")
 
 ```
 
@@ -296,7 +296,7 @@ clinical_variants_toclassify_matched<-clinical_variants_toclassify[!is.na(FoldX_
 
 table(clinical_variants_toclassify_matched$clinical_class_roc)
 
-pdf("output_files/ED_Figure9c_patho_vs_benign_roccurves_predictorcomparisons_mochipreds.pdf")
+pdf("output_files/ED_Figure9f_patho_vs_benign_roccurves_predictorcomparisons_mochipreds.pdf")
 plot(roc(clinical_variants_toclassify$clinical_class_roc,
          clinical_variants_toclassify$mean_esm1v_prediction_fl),col="orange",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.475)
 plot(roc(clinical_variants_toclassify$clinical_class_roc,

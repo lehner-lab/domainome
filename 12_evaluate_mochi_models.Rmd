@@ -50,7 +50,7 @@ p<-ggplot(mut_weights)+
                        low="blue",mid="white",high = "red",midpoint=0)+
   ggtitle(paste(family,fit_type,sep = "_"))
 
-if (save){ggsave(paste("output_files/Figure6e_",family,"_",fit_type,"_weight_heatmap.pdf",sep=""),height = 6, width=10)}else{
+if (save){ggsave(paste("output_files/Figure5e_",family,"_",fit_type,"_weight_heatmap.pdf",sep=""),height = 6, width=10)}else{
 
 print(p)
 mut_weights[,family:=family]
@@ -161,7 +161,7 @@ ggplot(predicted_vs_observed_merged_toplot)+
   stat_cor(aes(x=predicted,y=fitness,label = ..r.label..),size=2)+
   theme_classic()+
   theme(text=element_text(size=8))
-ggsave("output_files/ED_Figure_7a_obs_vs_predicted_allfamilies_boltzmann.pdf")
+ggsave("output_files/ED_Figure_6a_obs_vs_predicted_allfamilies_boltzmann.pdf")
 
 
 ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
@@ -171,7 +171,7 @@ ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
   stat_cor(aes(x=predicted,y=fitness,label = ..r.label..),size=2)+
   theme_classic()+
   theme(text=element_text(size=8))
-ggsave("output_files/Figure6c_obs_vs_predicted_homeodomains_boltzmann.pdf",height=3,width = 4)
+ggsave("output_files/Figure5c_obs_vs_predicted_homeodomains_boltzmann.pdf",height=3,width = 4)
 
 
 
@@ -189,7 +189,7 @@ ggplot(predicted_vs_observed_merged_toplot[PFAM_ID=="PF00046",])+
   theme_classic()+
   theme(text=element_text(size=8))+
   coord_cartesian(xlim = c(-3,5))
-ggsave("output_files/Figure6b_fitness_vs_additive_trait_homeodomains_boltzmann.pdf",height=3,width = 4)
+ggsave("output_files/Figure5b_fitness_vs_additive_trait_homeodomains_boltzmann.pdf",height=3,width = 4)
 
 
 #plot evaluation metrics
@@ -234,7 +234,7 @@ ggplot(summary_boltzmann_folding[N>5,])+
   geom_col(aes(x=sqrt(R2),y=PFAM_ID))+
   coord_cartesian(xlim = c(0.55,0.9))+
   xlab("Pearson's r")
-ggsave("output_files/Figure_6i_byfamily_performance.pdf")
+ggsave("output_files/Figure_5i_byfamily_performance.pdf")
 
 
 foldseek_distances<-fread("analysis_files/pdb_files/foldseek_easy_allvsall_lddt")
@@ -282,7 +282,7 @@ ggplot(all_weights[fit_type=="folding" & family %in% unique(summary_boltzmann_fo
   scale_fill_gradient2(limits=c(-1.5,1.5),
                        low="blue",mid="white",high = "red",midpoint=0)+
   facet_wrap(~family,scales = "free_x",ncol=5)
-ggsave("output_files/ED_Figure7b_modelweights.pdf",height=11,width=18)
+ggsave("output_files/ED_Figure6b_modelweights.pdf",height=11,width=18)
 
 ```
 

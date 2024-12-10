@@ -105,7 +105,7 @@ all_counts$PFAM_ID<-factor(all_counts$PFAM_ID,
 
 ggplot(all_counts)+
   geom_col(aes(y=PFAM_ID,x=`variant count`,fill=source))
-ggsave("output_files/ED_Figure9a_totalexpansioncount_variants.pdf")
+ggsave("output_files/ED_Figure9b_totalexpansioncount_variants.pdf")
 
 #expansion for domains
 expanded_counts_domains<-data.table(table(pfam_alignments_homochipredictions[!duplicated(PFAM_entry),]$PFAM_ID.x))
@@ -125,7 +125,7 @@ all_counts_domains$PFAM_ID<-factor(all_counts_domains$PFAM_ID,
 
 ggplot(all_counts_domains)+
   geom_col(aes(y=PFAM_ID,x=`domain count`,fill=source))
-ggsave("output_files/ED_Figure9b_totalexpansioncount_domains.pdf")
+ggsave("output_files/ED_Figure9c_totalexpansioncount_domains.pdf")
 
 
 #write table of predictions in homologs

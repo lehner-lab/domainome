@@ -139,7 +139,7 @@ median(cors_mochi_to_rocklin[in_aPCA==FALSE,]$pearson_rs)
 ggplot(cors_mochi_to_rocklin)+
   geom_boxplot(aes(y=pearson_rs,x=in_aPCA))+
   geom_jitter(aes(y=pearson_rs,x=in_aPCA),height=0)
-ggsave("output_files/performance_on_tsuboyama2023_homologs.pdf")
+ggsave("output_files/Figure5k_performance_on_tsuboyama2023_homologs.pdf")
 
 
 

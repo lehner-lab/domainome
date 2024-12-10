@@ -330,7 +330,7 @@ ggplot(mutated_domainome_final[STOP==FALSE & !(is.na(mut_class)),])+
   theme_classic()+
   coord_cartesian(xlim=c(-1.5,0.5))+
   facet_wrap(~core)
-ggsave("output_files/ED_Figure1f_core_vs_surface_scaledfitness_mutclass.pdf",width = 6,height = 3)
+ggsave("output_files/ED_Figure1g_core_vs_surface_scaledfitness_mutclass.pdf",width = 6,height = 3)
  
 
 ggplot(mutated_domainome_final[STOP==FALSE & WT==FALSE,])+
@@ -460,12 +460,12 @@ mutated_domainome_final_scop[secondary_structure=="AlphaHelix",secondary_structu
 ggplot(mutated_domainome_final_scop[!is.na(scop_class) & STOP==FALSE,])+
   geom_density(aes(x=scaled_gr,col=secondary_structure))+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/ED_Figure1f_secstruct_allmissense.pdf")
+ggsave("output_files/ED_Figure1g_secstruct_allmissense.pdf")
 
 ggplot(mutated_domainome_final_scop[STOP==FALSE & mut_aa=="P",])+
   geom_density(aes(x=scaled_gr,col=secondary_structure))+
   coord_cartesian(xlim=c(-1.5,0.5))
-ggsave("output_files/ED_Figure_1f_secstruct_proline.pdf")
+ggsave("output_files/ED_Figure_1g_secstruct_proline.pdf")
 
 
 ```
@@ -489,7 +489,7 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
   theme(text = element_text(size = 5))
-ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank1-104.pdf",sep=""),height=11.7,width=8.3)
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/Supp_Figure_1_all_domains_rank1-104.pdf",sep=""),height=11.7,width=8.3)
 
   
 ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>104 & rank_final<209,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
@@ -498,7 +498,7 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
   theme(text = element_text(size = 5))
-ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank105-208.pdf",sep=""),height=11.7,width=8.3)
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/Supp_Figure_1_all_domains_rank105-208.pdf",sep=""),height=11.7,width=8.3)
 
   
 ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>208 & rank_final<313,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
@@ -507,7 +507,7 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
   theme(text = element_text(size = 5))
-ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank209-312.pdf",sep=""),height=11.7,width=8.3)
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/Supp_Figure_1_all_domains_rank209-312.pdf",sep=""),height=11.7,width=8.3)
 
 ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>312 & rank_final<417,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
   geom_tile(aes(fill=scaled_gr))+
@@ -515,7 +515,7 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
   theme(text = element_text(size = 5))
-ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/ED_Figure_2_all_domains_rank313-416.pdf",sep=""),height=11.7,width=8.3)
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/Supp_Figure_1_all_domains_rank313-416.pdf",sep=""),height=11.7,width=8.3)
 
 ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtered_domains[rank_final>416 & rank_final<523,]$doms_lib & STOP==FALSE,], aes(x=pos_in_uniprot,y=mut_aa))+
   geom_tile(aes(fill=scaled_gr))+
@@ -523,7 +523,7 @@ ggplot(mutated_domainome_final_capped_toplot[WT==FALSE & dom_ID_lib %in% filtere
   xlab("position")+
   facet_wrap(~dom_ID_lib,scales = "free_x",ncol=8)+
   theme(text = element_text(size = 5))
-ggsave(paste("output_files/ED_Figure_2_all_domains_rank417-522.pdf",sep=""),height=11.7,width=8.3)
+ggsave(paste("output_files/data_for_all_domains/fitness_heatmaps_all/Supp_Figure_1_all_domains_rank417-522.pdf",sep=""),height=11.7,width=8.3)
 
 
 

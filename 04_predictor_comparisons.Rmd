@@ -166,7 +166,7 @@ ggplot(VEP_correlations_spearman.mlt[!is.na(`zinc finger`),])+
   facet_wrap(~`zinc finger`)+
   ylim(c(-0.25,0.85))
 
-ggsave("output_files/ED_Figure3a_VEPs_vs_aPCA_zf_vs_nonzf.pdf")
+ggsave("output_files/ED_Figure2a_VEPs_vs_aPCA_zf_vs_nonzf.pdf")
 
 
 summary_stats_spearman_all_zf<-VEP_correlations_spearman.mlt[`zinc finger`=="zinc finger",.(median_spearman_r=median(value,na.rm=TRUE)),
@@ -202,7 +202,7 @@ ggplot(VEP_correlations_spearman.mlt[`zinc finger`=="",])+
   facet_wrap(~homolog)+
   ylim(c(-0.25,0.85))
 
-ggsave("output_files/ED_Figure3b_VEPs_vs_aPCA_homologfree.pdf")
+ggsave("output_files/ED_Figure2b_VEPs_vs_aPCA_homologfree.pdf")
 
 
 summary_stats_spearman_homologs<-VEP_correlations_spearman.mlt[`zinc finger`!="zinc finger" & homolog=="yes",.(median_spearman_r=median(value,na.rm=TRUE)),
@@ -287,7 +287,7 @@ VEP_correlations[,explainable_variance_spearman:=esm1v_fl_r_spearman_attenuation
 ggplot(VEP_correlations)+
   geom_point(aes(x=explainable_variance,y=explainable_variance_spearman))+
   theme_classic()
-ggsave("output_files/ED_Figure3c_parametric_vs_nonparametric_varexplained.pdf")
+ggsave("output_files/ED_Figure2c_parametric_vs_nonparametric_varexplained.pdf")
 
 cor(VEP_correlations$explainable_variance,VEP_correlations$explainable_variance_spearman,
     use = "pairwise.complete.obs")
@@ -320,7 +320,7 @@ ggplot(VEP_correlations[PFAM_ID %in% families_with_5,])+
   scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   theme_classic()
-ggsave("output_files/Figure3d_esm1v_vs_aPCA.pdf")
+ggsave("output_files/ED_Figure2e_esm1v_vs_aPCA.pdf")
 
 
 ggplot(VEP_correlations[!is.na(scop_class),])+
@@ -330,7 +330,7 @@ ggplot(VEP_correlations[!is.na(scop_class),])+
   scale_color_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   scale_fill_manual(values=c("#A0ACD7","#ED1C24","#294599","#FBB040"))+
   theme_classic()
-ggsave("output_files/Figure3e_esm1v_vs_aPCA_scopclasses.pdf")
+ggsave("output_files/ED_Figure2f_esm1v_vs_aPCA_scopclasses.pdf")
 
 
 ggplot(VEP_correlations[!is.na(domain_function),])+
@@ -340,7 +340,7 @@ ggplot(VEP_correlations[!is.na(domain_function),])+
   scale_color_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
   scale_fill_manual(values=c("lightgrey","lightgrey","lightgrey","lightgrey"))+
   theme_classic()
-ggsave("output_files/Figure3f_esm1v_vs_aPCA_domainfunction.pdf")
+ggsave("output_files/ED_Figure2g_esm1v_vs_aPCA_domainfunction.pdf")
 
 median(VEP_correlations$explainable_variance,na.rm=TRUE)
 median(VEP_correlations[scop_class=="all beta" & N,]$explainable_variance,na.rm=TRUE)

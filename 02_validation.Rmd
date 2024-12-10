@@ -140,7 +140,7 @@ ggplot(mutated_domainome_invitro_ddGs[dom_ID %in% ivt_comparison_summary_dominfo
   facet_wrap(~dom_ID)+
   geom_smooth(aes(x=ddG,y=growthrate),method="lm",col="red")+
   theme_classic()
-ggsave("output_files/ED_Figure1d_correlations_to_invitro.pdf",height=5,width=6)
+ggsave("output_files/ED_Figure1e_correlations_to_invitro.pdf",height=5,width=6)
 
 
 median(ivt_comparison_summary_dominfo$cors_to_ddG_spearman)
@@ -237,7 +237,7 @@ ggplot(aPCA_rocklin_merged_ddGs[dom_ID %in% cors_to_rocklin$dom_ID & mean_count>
   facet_wrap(~dom_ID,ncol=4)+
   geom_smooth(aes(x=rocklin_ddG,y=growthrate),method="lm",col="red")+
   theme_classic()
-ggsave("output_files/ED_Figure1e_correlations_to_rocklin.pdf",height=5,width = 7)
+ggsave("output_files/ED_Figure1f_correlations_to_rocklin.pdf",height=5,width = 7)
 
 median(cors_to_rocklin$spearman_r)
 
